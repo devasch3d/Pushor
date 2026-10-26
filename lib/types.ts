@@ -83,9 +83,11 @@ export interface Submission {
   created_at: string;
 }
 
-/** submission 联表提交人之后的形状 */
+/** submission 联表提交人 / 清理记录之后的形状 */
 export interface SubmissionWithRelations extends Submission {
   member: Pick<Profile, "display_name"> | null;
+  /** 非 null 表示附件文件已被定时清理删除 */
+  purge: { purged_at: string } | null;
 }
 
 /** 再加上临时签名后的可显示 URL */

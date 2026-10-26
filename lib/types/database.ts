@@ -110,6 +110,21 @@ export interface Database {
         };
         Relationships: [];
       };
+      purge_log: {
+        Row: {
+          submission_id: string;
+          purged_at: string;
+        };
+        Insert: {
+          submission_id: string;
+          purged_at?: string;
+        };
+        Update: {
+          submission_id?: string;
+          purged_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

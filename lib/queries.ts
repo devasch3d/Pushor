@@ -11,11 +11,12 @@ import { todayRange } from "@/lib/time";
 
 type Client = SupabaseClient<Database>;
 
-/** 联表查询用的 select 片段：把提交人名字一次取回来 */
+/** 联表查询用的 select 片段：把提交人名字和清理记录一次取回来 */
 const SUBMISSION_SELECT = `
   id, task_id, member_id, event, image_url, note, status, admin_note,
   reviewed_at, replaces_id, created_at,
-  member:profiles ( display_name )
+  member:profiles ( display_name ),
+  purge:purge_log ( purged_at )
 `;
 
 /** 签名 URL 的有效期：10 分钟。够看完图并做审核决定，又不会长期外泄 */
@@ -45,6 +46,11 @@ export async function withSignedUrls(
   const storagePaths = new Set<string>();
 
   for (const row of rows) {
+    // 已被定时清理删掉的文件：不签名，直接给 null，前端显示占位块
+    if (row.purge) {
+      urlByRef.set(row.image_url, null);
+      continue;
+    }
     if (isInlineImageRef(row.image_url)) {
       urlByRef.set(row.image_url, row.image_url);
     } else {

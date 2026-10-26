@@ -1,0 +1,13 @@
+name = "pushor-purge"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+# 每天 UTC 20:00 跑一次 = 北京时间凌晨 4 点
+[triggers]
+crons = ["0 20 * * *"]
+
+[vars]
+SUPABASE_URL = "https://wqretjtulibapshbdcar.supabase.co"
+
+# SUPABASE_SERVICE_ROLE_KEY 和 CRON_SECRET 是 secret，用 wrangler secret put 配置，不写在这里
