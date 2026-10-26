@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { LogoutButton } from "@/components/terminal/logout-button";
 import { PushorLogo } from "@/components/terminal/logo";
 import { RoleBadge } from "@/components/terminal/status-badge";
@@ -40,9 +38,6 @@ export function TerminalShell({
               Pushor
             </span>
           </span>
-          <span className="hidden text-[11px] text-term-dim sm:inline" aria-hidden>
-            checkin · manual-review-only
-          </span>
 
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden font-mono text-[11px] text-muted-foreground md:inline">
@@ -80,20 +75,6 @@ export function TerminalShell({
       ) : null}
 
       <main className={cn("flex flex-1 flex-col gap-4", className)}>{children}</main>
-
-      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-1 pt-3 font-mono text-[10px] text-term-dim">
-        <span>Pushor</span>
-        <span aria-hidden>·</span>
-        <span>只做截图提交与人工审核</span>
-        <span aria-hidden>·</span>
-        <span>审核结论由管理员逐条给出，系统不做任何自动汇总</span>
-        <Link
-          href={profile.role === "admin" ? "/admin" : "/member"}
-          className="ml-auto hover:text-primary"
-        >
-          [ 回到主控台 ]
-        </Link>
-      </footer>
     </div>
   );
 }

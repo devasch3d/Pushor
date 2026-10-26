@@ -71,8 +71,9 @@ export interface Database {
       submissions: {
         Row: {
           id: string;
-          task_id: string;
+          task_id: string | null;
           member_id: string;
+          event: string | null;
           image_url: string;
           note: string | null;
           status: "pending" | "approved" | "rejected";
@@ -83,8 +84,9 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          task_id: string;
+          task_id?: string | null;
           member_id: string;
+          event?: string | null;
           image_url: string;
           note?: string | null;
           status?: "pending" | "approved" | "rejected";
@@ -95,8 +97,9 @@ export interface Database {
         };
         Update: {
           id?: string;
-          task_id?: string;
+          task_id?: string | null;
           member_id?: string;
+          event?: string | null;
           image_url?: string;
           note?: string | null;
           status?: "pending" | "approved" | "rejected";

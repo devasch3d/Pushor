@@ -1,11 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/types/database";
-import {
-  ALLOWED_IMAGE_TYPES,
-  STORAGE_BUCKET,
-  buildScreenshotPath,
-} from "@/lib/types";
+import { STORAGE_BUCKET, buildScreenshotPath } from "@/lib/types";
 
 /**
  * 截图存储层。
@@ -37,13 +33,9 @@ export function isInlineImageRef(ref: string): boolean {
   return ref.startsWith("data:");
 }
 
-/** 校验一条内联 image ref 是不是合法的、允许的类型 */
+/** 校验一条内联 image ref 是不是有实际数据（格式不限） */
 export function validateInlineImageRef(ref: string): string | null {
   if (!isInlineImageRef(ref)) return "不是内联图片";
-  const mime = ref.slice("data:".length).split(";")[0]?.toLowerCase() ?? "";
-  if (!ALLOWED_IMAGE_TYPES.includes(mime as (typeof ALLOWED_IMAGE_TYPES)[number])) {
-    return `不支持的内联图片类型：${mime || "未知"}`;
-  }
   if (!ref.includes(",") || ref.split(",")[1]?.length === 0) {
     return "内联图片数据为空";
   }
@@ -91,7 +83,10 @@ export async function uploadScreenshot(
 
   const { error } = await supabase.storage
     .from(STORAGE_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
+    .upload(path, file, {
+      contentType: file.type || "application/octet-stream",
+      upsert: false,
+    });
 
   if (!error) return { imageRef: path, mode: "storage" };
 

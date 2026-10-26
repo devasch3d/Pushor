@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Loader2, Mail, Terminal } from "lucide-react";
+import { KeyRound, Loader2, Terminal, User } from "lucide-react";
 
 import { signIn } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase/client";
@@ -77,8 +77,8 @@ export function LoginForm({ errorCode }: LoginFormProps) {
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="email">
-            <Mail className="mr-1 inline h-3 w-3" aria-hidden />
-            邮箱
+            <User className="mr-1 inline h-3 w-3" aria-hidden />
+            用户
           </Label>
           <Input
             id="email"
@@ -86,7 +86,6 @@ export function LoginForm({ errorCode }: LoginFormProps) {
             type="email"
             required
             autoComplete="email"
-            placeholder="you@example.com"
           />
         </div>
 
@@ -101,7 +100,6 @@ export function LoginForm({ errorCode }: LoginFormProps) {
             type="password"
             required
             autoComplete="current-password"
-            placeholder="••••••••"
           />
         </div>
 
@@ -112,10 +110,7 @@ export function LoginForm({ errorCode }: LoginFormProps) {
               执行中…
             </>
           ) : (
-            <>
-              <span aria-hidden>$ </span>
-              login
-            </>
+            "login"
           )}
         </Button>
       </form>

@@ -36,3 +36,6 @@ yarn-error.log*
 
 # wrangler 本地缓存/日志
 .wrangler/
+
+# 定时清理任务的校验密钥，绝不提交
+.cron-secret

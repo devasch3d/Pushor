@@ -62,13 +62,13 @@ function ReviewedGroup({
             <li key={submission.id} className="flex items-start gap-2 p-2">
               <ScreenshotThumb
                 src={submission.signed_url}
-                alt={`${submission.task?.title ?? "提交"} 的截图`}
+                alt={`${submission.event ?? "提交"} 的附件`}
                 size={56}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-mono text-xs text-foreground">
-                    {submission.task?.title ?? "（任务已删除）"}
+                    {submission.event ?? "（无事件名）"}
                   </span>
                   <SubmissionStatusBadge status={submission.status} />
                 </div>

@@ -5,7 +5,6 @@ import * as React from "react";
 import { ReviewPanel } from "@/components/admin/review-panel";
 import { ScreenshotThumb } from "@/components/terminal/screenshot-view";
 import { EmptyLine } from "@/components/terminal/shell";
-import { CategoryTag } from "@/components/terminal/status-badge";
 import {
   Dialog,
   DialogContent,
@@ -46,22 +45,19 @@ export function PendingQueue({
               type="button"
               onClick={() => setActiveId(submission.id)}
               className="flex w-full items-start gap-2 border border-border bg-background/50 p-2 text-left transition-colors hover:border-accent/60 hover:bg-accent/5 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              aria-label={`审核 ${submission.task?.title ?? submission.id} 的提交`}
+              aria-label={`审核 ${submission.event ?? submission.id} 的提交`}
             >
               <span className="mt-0.5 w-7 shrink-0 font-mono text-[10px] text-term-dim">
                 {String(index + 1).padStart(2, "0")}
               </span>
               <ScreenshotThumb
                 src={submission.signed_url}
-                alt={`${submission.task?.title ?? "提交"} 的截图缩略图`}
+                alt={`${submission.event ?? "提交"} 的附件缩略图`}
                 size={72}
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs text-foreground">
-                  {submission.task?.title ?? "（任务已删除）"}
-                </span>
-                <span className="mt-1 block">
-                  {submission.task ? <CategoryTag category={submission.task.category} /> : null}
+                  {submission.event ?? "（无事件名）"}
                 </span>
                 <span className="mt-1 block truncate font-mono text-[10px] text-muted-foreground">
                   {submission.member?.display_name ?? submission.member_id.slice(0, 8)}

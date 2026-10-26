@@ -7,33 +7,23 @@ import { submitScreenshot } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
 import { getSupabase } from "@/lib/supabase/client";
 import { uploadScreenshot } from "@/lib/storage";
 import {
-  CATEGORY_LABEL,
-  IMAGE_ACCEPT,
-  MAX_IMAGE_BYTES,
-  validateImageFile,
-  type TaskCategory,
+  MAX_UPLOAD_BYTES,
+  isPreviewableImage,
+  validateUploadFile,
 } from "@/lib/types";
-
-export interface SubmittableTask {
-  id: string;
-  title: string;
-  category: TaskCategory;
-  due_date: string | null;
-}
 
 interface ScreenshotUploadFormProps {
   memberId: string;
-  tasks: SubmittableTask[];
-  /** 重新提交时锁定任务，不让改成别的任务 */
-  lockedTaskId?: string;
   /** 重新提交时指向被驳回的旧记录 */
   replacesId?: string;
+  /** 重新提交时预填旧记录的事件 / 描述 */
+  initialEvent?: string;
+  initialNote?: string;
   submitLabel?: string;
   onSuccess?: () => void;
 }
@@ -41,28 +31,26 @@ interface ScreenshotUploadFormProps {
 type Phase = "idle" | "uploading" | "saving" | "done";
 
 /**
- * 提交截图表单。
- * 流程：选文件 → 校验类型/大小 → 直传 Storage 的 <memberId>/ 目录 →
- *       调 server action 写 submissions（status 固定 pending）。
+ * 提交附件表单。
+ * 事件 / 描述由成员自己键入；文件不限格式、单个 ≤ 10 MB。
+ * 流程：校验大小 → 直传 Storage 的 <memberId>/ 目录 → 写 submissions（status 固定 pending）。
  */
 export function ScreenshotUploadForm({
   memberId,
-  tasks,
-  lockedTaskId,
   replacesId,
+  initialEvent,
+  initialNote,
   submitLabel,
   onSuccess,
 }: ScreenshotUploadFormProps) {
   const [file, setFile] = React.useState<File | null>(null);
   const [preview, setPreview] = React.useState<string | null>(null);
-  const [note, setNote] = React.useState("");
   const [phase, setPhase] = React.useState<Phase>("idle");
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const busy = phase === "uploading" || phase === "saving";
-  const lockedTask = tasks.find((task) => task.id === lockedTaskId);
 
   React.useEffect(() => {
     return () => {
@@ -83,7 +71,7 @@ export function ScreenshotUploadForm({
       return;
     }
 
-    const problem = validateImageFile(picked);
+    const problem = validateUploadFile(picked);
     if (problem) {
       setFile(null);
       setPreview(null);
@@ -105,14 +93,15 @@ export function ScreenshotUploadForm({
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const taskId = lockedTaskId ?? String(formData.get("task_id") ?? "");
+    const eventText = String(formData.get("event") ?? "").trim();
+    const note = String(formData.get("note") ?? "").trim();
 
-    if (!taskId) {
-      setError("请选择要提交的任务");
+    if (!eventText) {
+      setError("请填写事件");
       return;
     }
     if (!file) {
-      setError("请选择一张截图");
+      setError("请选择一个文件");
       return;
     }
 
@@ -124,7 +113,7 @@ export function ScreenshotUploadForm({
 
       setPhase("saving");
       const result = await submitScreenshot({
-        taskId,
+        event: eventText,
         imageRef: uploaded.imageRef,
         note,
         replacesId,
@@ -143,7 +132,6 @@ export function ScreenshotUploadForm({
           : "已提交，状态为待审，等管理员审核。",
       );
       setFile(null);
-      setNote("");
       if (preview) URL.revokeObjectURL(preview);
       setPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -156,81 +144,65 @@ export function ScreenshotUploadForm({
     }
   }
 
-  const noTasks = tasks.length === 0;
-
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3">
       {error ? <ErrorLine>{error}</ErrorLine> : null}
       {ok ? <OkLine>{ok}</OkLine> : null}
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="task_id">
+        <Label htmlFor="event">
           <span className="text-term-dim" aria-hidden>
-            --task=&nbsp;
+            --event=&nbsp;
           </span>
-          任务
+          事件
         </Label>
-        {lockedTaskId ? (
-          <div className="term-input flex h-9 items-center gap-2 px-3 text-sm">
-            <span className="text-primary">{lockedTask?.title ?? lockedTaskId.slice(0, 8)}</span>
-            {lockedTask ? (
-              <span className="text-[11px] text-muted-foreground">
-                [{CATEGORY_LABEL[lockedTask.category]}]
-              </span>
-            ) : null}
-            <span className="ml-auto text-[11px] text-term-dim">locked</span>
-          </div>
-        ) : (
-          <Select id="task_id" name="task_id" required disabled={noTasks || busy} defaultValue="">
-            <option value="" disabled>
-              {noTasks ? "还没有可提交的任务，请联系管理员创建" : "── 选择任务 ──"}
-            </option>
-            {tasks.map((task) => (
-              <option key={task.id} value={task.id}>
-                [{CATEGORY_LABEL[task.category]}] {task.title}
-                {task.due_date ? ` · 截止 ${task.due_date}` : ""}
-              </option>
-            ))}
-          </Select>
-        )}
+        <Input
+          id="event"
+          name="event"
+          required
+          maxLength={120}
+          disabled={busy}
+          defaultValue={initialEvent ?? ""}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="screenshot">
+        <Label htmlFor="attachment">
           <Upload className="mr-1 inline h-3 w-3" aria-hidden />
-          截图
+          附件
         </Label>
         <Input
-          id="screenshot"
+          id="attachment"
           ref={fileInputRef}
-          name="screenshot"
+          name="attachment"
           type="file"
-          accept={IMAGE_ACCEPT}
-          required={!lockedTaskId ? true : undefined}
+          required
           disabled={busy}
           onChange={onFileChange}
         />
         <p className="font-mono text-[11px] text-term-dim">
-          PNG / JPEG / WebP / GIF，单个文件不超过 {MAX_IMAGE_BYTES / 1024 / 1024} MB。
-          上传到私有 bucket，只有你和管理员能看到。
+          格式不限，单个文件不超过 {MAX_UPLOAD_BYTES / 1024 / 1024} MB。
+          上传到私有空间，只有你和管理员能看到。
         </p>
       </div>
 
-      {preview ? (
+      {preview && file ? (
         <div className="flex items-start gap-3 border border-border bg-background/60 p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- 本地预览用 object URL，不走优化器 */}
-          <img
-            src={preview}
-            alt="待提交截图预览"
-            className="h-24 w-24 shrink-0 border border-border object-cover"
-          />
+          {isPreviewableImage(file.type || file.name) ? (
+            // eslint-disable-next-line @next/next/no-img-element -- 本地预览用 object URL
+            <img
+              src={preview}
+              alt="待提交文件预览"
+              className="h-24 w-24 shrink-0 border border-border object-cover"
+            />
+          ) : (
+            <span className="flex h-24 w-24 shrink-0 flex-col items-center justify-center border border-border font-mono text-[10px] uppercase text-term-dim">
+              .{(file.name.split(".").pop() ?? "bin").slice(0, 6)}
+            </span>
+          )}
           <div className="min-w-0 flex-1 font-mono text-[11px] text-muted-foreground">
-            <p className="truncate text-foreground">{file?.name}</p>
-            <p>
-              size=
-              {file ? `${(file.size / 1024).toFixed(0)} KB` : "--"} · type={file?.type || "--"}
-            </p>
-            <p className="text-term-dim">ref=&lt;member-uuid&gt;/&lt;random&gt;.* · private</p>
+            <p className="truncate text-foreground">{file.name}</p>
+            <p>size={(file.size / 1024).toFixed(0)} KB</p>
             <Button
               type="button"
               variant="ghost"
@@ -255,7 +227,7 @@ export function ScreenshotUploadForm({
           <span className="text-term-dim" aria-hidden>
             --note=&nbsp;
           </span>
-          备注（选填）
+          描述（选填）
         </Label>
         <Textarea
           id="note"
@@ -263,23 +235,18 @@ export function ScreenshotUploadForm({
           rows={2}
           maxLength={500}
           disabled={busy}
-          value={note}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="给管理员看的一句话说明，例如：第 3 章练习题全做完，最后一题不会"
+          defaultValue={initialNote ?? ""}
         />
       </div>
 
-      <Button type="submit" disabled={busy || (noTasks && !lockedTaskId)}>
+      <Button type="submit" disabled={busy}>
         {busy ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             {phase === "uploading" ? "上传中…" : "写入中…"}
           </>
         ) : (
-          <>
-            <span aria-hidden>$ </span>
-            {submitLabel ?? (replacesId ? "resubmit" : "submit")}
-          </>
+          submitLabel ?? (replacesId ? "resubmit" : "submit")
         )}
       </Button>
     </form>

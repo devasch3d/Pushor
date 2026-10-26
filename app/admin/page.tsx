@@ -3,29 +3,22 @@
 import * as React from "react";
 
 import { PendingQueue } from "@/components/admin/pending-queue";
-import { TaskManager } from "@/components/admin/task-manager";
 import { TodayReviewed } from "@/components/admin/today-reviewed";
 import { BootScreen } from "@/components/terminal/boot-screen";
 import { ErrorLine, Panel } from "@/components/terminal/shell";
 import { TerminalShell } from "@/components/terminal/terminal-shell";
-import {
-  fetchAllProfiles,
-  fetchAllTasks,
-  fetchPendingQueue,
-  fetchTodayReviewed,
-} from "@/lib/queries";
+import { fetchPendingQueue, fetchTodayReviewed } from "@/lib/queries";
 import { getSupabase } from "@/lib/supabase/client";
 import { useRequireRole } from "@/lib/hooks";
 import { APP_TIME_ZONE, todayRange } from "@/lib/time";
-import type { Profile, SignedSubmission, TaskWithMember } from "@/lib/types";
+import type { SignedSubmission } from "@/lib/types";
 
+/** 管理端只负责接收和评定：待审队列 + 今日已审 */
 export default function AdminPage() {
   const { profile, loading } = useRequireRole("admin");
 
   const [pending, setPending] = React.useState<SignedSubmission[]>([]);
   const [todayReviewed, setTodayReviewed] = React.useState<SignedSubmission[]>([]);
-  const [tasks, setTasks] = React.useState<TaskWithMember[]>([]);
-  const [profiles, setProfiles] = React.useState<Profile[]>([]);
   const [dataError, setDataError] = React.useState<string | null>(null);
   const [fetching, setFetching] = React.useState(true);
 
@@ -35,16 +28,12 @@ export default function AdminPage() {
     setDataError(null);
     try {
       const supabase = getSupabase();
-      const [pendingRows, reviewedRows, taskRows, profileRows] = await Promise.all([
+      const [pendingRows, reviewedRows] = await Promise.all([
         fetchPendingQueue(supabase),
         fetchTodayReviewed(supabase),
-        fetchAllTasks(supabase),
-        fetchAllProfiles(supabase),
       ]);
       setPending(pendingRows);
       setTodayReviewed(reviewedRows);
-      setTasks(taskRows);
-      setProfiles(profileRows as Profile[]);
     } catch (thrown) {
       setDataError(thrown instanceof Error ? thrown.message : "读取数据失败");
     } finally {
@@ -65,8 +54,8 @@ export default function AdminPage() {
   return (
     <TerminalShell
       profile={profile}
-      command="admin review --queue --today --tasks"
-      bootNote={`review console · tz=${APP_TIME_ZONE} · day=${day} · 人工审核，不做任何自动汇总`}
+      command="admin review --queue --today"
+      bootNote={`review console · tz=${APP_TIME_ZONE} · day=${day}`}
     >
       {dataError ? <ErrorLine>{dataError}</ErrorLine> : null}
 
@@ -82,10 +71,6 @@ export default function AdminPage() {
         hint={`${day} · approved=${approvedToday} · rejected=${rejectedToday}`}
       >
         <TodayReviewed submissions={todayReviewed} day={day} />
-      </Panel>
-
-      <Panel title="任务管理" hint={`total=${tasks.length} · 归档是软下线，不删数据`}>
-        <TaskManager tasks={tasks} profiles={profiles} onChanged={() => void load()} />
       </Panel>
     </TerminalShell>
   );

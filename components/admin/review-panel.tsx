@@ -79,7 +79,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
-        <span className="text-foreground">{submission.task?.title ?? "（任务已删除）"}</span>
+        <span className="text-foreground">{submission.event ?? "（无事件名）"}</span>
         <SubmissionStatusBadge status={submission.status} />
         <span className="text-term-dim">·</span>
         <span>提交人 {submission.member?.display_name ?? submission.member_id.slice(0, 8)}</span>
@@ -101,7 +101,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
           // eslint-disable-next-line @next/next/no-img-element -- 签名 URL 短时效，按原图展示
           <img
             src={submission.signed_url}
-            alt={`${submission.task?.title ?? "提交"} 的打卡截图`}
+            alt={`${submission.event ?? "提交"} 的附件`}
             className="mx-auto max-w-full"
           />
         ) : (
@@ -113,7 +113,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
 
       {submission.note ? (
         <p className="whitespace-pre-wrap break-words border-l-2 border-border pl-2 font-mono text-xs text-muted-foreground">
-          <span className="text-term-dim">成员备注&gt; </span>
+          <span className="text-term-dim">成员描述&gt; </span>
           {submission.note}
         </p>
       ) : null}
@@ -140,7 +140,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
               setReason(event.target.value);
               if (error) setError(null);
             }}
-            placeholder="写清楚哪里不合格，例如：截图里没有日期，看不出是今天完成的"
+            aria-label="驳回原因（必填）"
           />
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -193,7 +193,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
               value={approveNote}
               disabled={busy}
               onChange={(event) => setApproveNote(event.target.value)}
-              placeholder="例如：完成度不错，继续保持"
+              aria-label="通过附言（选填）"
             />
           </div>
         ) : null}

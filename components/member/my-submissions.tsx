@@ -1,26 +1,21 @@
 import { ResubmitDialog } from "@/components/member/resubmit-dialog";
-import type { SubmittableTask } from "@/components/member/screenshot-upload-form";
 import { ScreenshotThumb } from "@/components/terminal/screenshot-view";
 import { EmptyLine } from "@/components/terminal/shell";
-import { CategoryTag, SubmissionStatusBadge } from "@/components/terminal/status-badge";
+import { SubmissionStatusBadge } from "@/components/terminal/status-badge";
 import { formatShort, fromNow } from "@/lib/time";
 import type { SignedSubmission } from "@/lib/types";
 
 interface MySubmissionsProps {
   memberId: string;
   submissions: SignedSubmission[];
-  /** 可重新提交的任务集合（进行中的任务） */
-  tasks: SubmittableTask[];
   /** 数据变化后让外层重新拉取 */
   onChanged?: () => void;
 }
 
-/**
- * 「我的提交」列表：状态、驳回原因、以及被驳回记录的「重新提交」入口。
- */
-export function MySubmissions({ memberId, submissions, tasks, onChanged }: MySubmissionsProps) {
+/** 「我的提交」列表：事件、状态、驳回原因、以及被驳回记录的「重新提交」入口 */
+export function MySubmissions({ memberId, submissions, onChanged }: MySubmissionsProps) {
   if (submissions.length === 0) {
-    return <EmptyLine>还没有提交记录。上面选个任务、传张截图就行。</EmptyLine>;
+    return <EmptyLine>--</EmptyLine>;
   }
 
   return (
@@ -32,16 +27,15 @@ export function MySubmissions({ memberId, submissions, tasks, onChanged }: MySub
           <li key={submission.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start">
             <ScreenshotThumb
               src={submission.signed_url}
-              alt={`${submission.task?.title ?? "任务"} 的打卡截图`}
+              alt={`${submission.event ?? "提交"} 的附件`}
               size={80}
             />
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate font-mono text-sm text-foreground">
-                  {submission.task?.title ?? "（任务已删除）"}
+                  {submission.event ?? "（无事件名）"}
                 </span>
-                {submission.task ? <CategoryTag category={submission.task.category} /> : null}
                 <SubmissionStatusBadge status={submission.status} />
                 {submission.replaces_id ? (
                   <span
@@ -61,7 +55,7 @@ export function MySubmissions({ memberId, submissions, tasks, onChanged }: MySub
 
               {submission.note ? (
                 <p className="mt-1 whitespace-pre-wrap break-words font-mono text-[11px] text-muted-foreground">
-                  <span className="text-term-dim">note&gt; </span>
+                  <span className="text-term-dim">描述&gt; </span>
                   {submission.note}
                 </p>
               ) : null}
@@ -86,10 +80,7 @@ export function MySubmissions({ memberId, submissions, tasks, onChanged }: MySub
               <div className="shrink-0 sm:pt-1">
                 <ResubmitDialog
                   memberId={memberId}
-                  tasks={tasks}
-                  submissionId={submission.id}
-                  taskId={submission.task_id}
-                  adminNote={submission.admin_note}
+                  submission={submission}
                   onChanged={onChanged}
                 />
               </div>

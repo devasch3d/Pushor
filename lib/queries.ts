@@ -5,18 +5,16 @@ import {
   STORAGE_BUCKET,
   type SignedSubmission,
   type SubmissionWithRelations,
-  type TaskWithMember,
 } from "@/lib/types";
 import { isInlineImageRef } from "@/lib/storage";
 import { todayRange } from "@/lib/time";
 
 type Client = SupabaseClient<Database>;
 
-/** 联表查询用的 select 片段：把 task 标题和提交人名字一次取回来 */
+/** 联表查询用的 select 片段：把提交人名字一次取回来 */
 const SUBMISSION_SELECT = `
-  id, task_id, member_id, image_url, note, status, admin_note,
+  id, task_id, member_id, event, image_url, note, status, admin_note,
   reviewed_at, replaces_id, created_at,
-  task:tasks ( title, category, due_date ),
   member:profiles ( display_name )
 `;
 
@@ -82,7 +80,6 @@ export async function withSignedUrls(
 
   return rows.map((row) => ({
     ...row,
-    task: (row.task ?? null) as SignedSubmission["task"],
     member: (row.member ?? null) as SignedSubmission["member"],
     signed_url: urlByRef.get(row.image_url) ?? null,
   }));
@@ -130,47 +127,7 @@ export async function fetchMySubmissions(
   return withSignedUrls(supabase, (data ?? []) as unknown as RawSubmission[]);
 }
 
-/** member：我可提交的任务（进行中、属于我） */
-export async function fetchMyActiveTasks(supabase: Client, memberId: string) {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("id, title, category, due_date, status, member_id, created_at")
-    .eq("member_id", memberId)
-    .eq("status", "active")
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
-
-  if (error) throw new Error(`读取任务列表失败：${error.message}`);
-  return data ?? [];
-}
-
-/** member：我的全部任务（含已归档），用于任务列表面板 */
-export async function fetchMyTasks(supabase: Client, memberId: string) {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("id, title, category, due_date, status, member_id, created_at")
-    .eq("member_id", memberId)
-    .order("status", { ascending: true })
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
-
-  if (error) throw new Error(`读取任务列表失败：${error.message}`);
-  return data ?? [];
-}
-
-/** admin：任务管理列表 */
-export async function fetchAllTasks(supabase: Client): Promise<TaskWithMember[]> {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("id, member_id, title, category, due_date, status, created_at, member:profiles ( display_name )")
-    .order("status", { ascending: true })
-    .order("created_at", { ascending: false });
-
-  if (error) throw new Error(`读取任务列表失败：${error.message}`);
-  return (data ?? []) as unknown as TaskWithMember[];
-}
-
-/** admin：成员列表，用于新建任务时挑人。RLS 只让 admin 读到全部 profiles */
+/** admin：成员列表（保留：管理端展示提交人名字靠 submissions 联表，这里暂不使用） */
 export async function fetchAllProfiles(supabase: Client) {
   const { data, error } = await supabase
     .from("profiles")

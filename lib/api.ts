@@ -13,7 +13,7 @@
 
 import { getSupabase } from "@/lib/supabase/client";
 import { isInlineImageRef, validateInlineImageRef } from "@/lib/storage";
-import { TASK_CATEGORIES, type ReviewDecision, type TaskCategory } from "@/lib/types";
+import type { ReviewDecision } from "@/lib/types";
 
 export interface ActionResult {
   ok: boolean;
@@ -60,12 +60,13 @@ export async function signOutUser(): Promise<void> {
 }
 
 /**
- * 成员提交打卡截图。
+ * 成员提交打卡附件。
+ * 事件 / 描述由成员自己键入，不需要管理员事先布置任务。
  * imageRef 有两种合法形态：Storage 对象路径（主路径），
- * 或 data: 内联图片（仅在没有 Storage 的环境才会出现）。
+ * 或 data: 内联（仅在没有 Storage 的环境才会出现）。
  */
 export async function submitScreenshot(input: {
-  taskId: string;
+  event: string;
   imageRef: string;
   note: string;
   replacesId?: string | null;
@@ -76,40 +77,33 @@ export async function submitScreenshot(input: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "登录态失效了，请重新登录" };
 
-  const { taskId, imageRef, replacesId } = input;
-  if (!taskId) return { ok: false, error: "请选择要提交的任务" };
-  if (!imageRef) return { ok: false, error: "请先上传截图" };
+  const event = input.event.trim().slice(0, 120);
+  const { imageRef, replacesId } = input;
+  if (!event) return { ok: false, error: "请填写事件" };
+  if (!imageRef) return { ok: false, error: "请先上传文件" };
 
   if (isInlineImageRef(imageRef)) {
     const problem = validateInlineImageRef(imageRef);
     if (problem) return { ok: false, error: problem };
   } else if (!imageRef.startsWith(`${user.id}/`)) {
-    return { ok: false, error: "截图路径不合法，请重新上传" };
+    return { ok: false, error: "文件路径不合法，请重新上传" };
   }
 
   const note = input.note.trim() ? input.note.trim().slice(0, 500) : null;
 
-  const { data: task } = await supabase
-    .from("tasks")
-    .select("id, status")
-    .eq("id", taskId)
-    .maybeSingle();
-  if (!task) return { ok: false, error: "任务不存在，或不属于你" };
-  if (task.status !== "active") return { ok: false, error: "任务已归档，不能再提交" };
-
   if (replacesId) {
     const { data: previous } = await supabase
       .from("submissions")
-      .select("id, status, task_id")
+      .select("id, status")
       .eq("id", replacesId)
       .maybeSingle();
     if (!previous) return { ok: false, error: "找不到要替换的那条提交记录" };
     if (previous.status !== "rejected") return { ok: false, error: "只有被驳回的记录才能重新提交" };
-    if (previous.task_id !== taskId) return { ok: false, error: "重新提交必须挂在同一个任务下" };
   }
 
   const { error } = await supabase.from("submissions").insert({
-    task_id: taskId,
+    task_id: null,
+    event,
     member_id: user.id,
     image_url: imageRef,
     note,
@@ -163,45 +157,5 @@ export async function reviewSubmission(input: {
   if (!updated || updated.length === 0) {
     return { ok: false, error: "这条已经被审过了，刷新一下队列" };
   }
-  return { ok: true };
-}
-
-/** 归档 / 取消归档任务 */
-export async function setTaskStatus(
-  taskId: string,
-  status: "active" | "archived",
-): Promise<ActionResult> {
-  if (!taskId) return { ok: false, error: "缺少任务 id" };
-  const { error } = await getSupabase().from("tasks").update({ status }).eq("id", taskId);
-  if (error) return { ok: false, error: `更新任务失败：${error.message}` };
-  return { ok: true };
-}
-
-/** 管理员手动建任务 */
-export async function createTask(input: {
-  memberId: string;
-  title: string;
-  category: string;
-  dueDate: string;
-}): Promise<ActionResult> {
-  const title = input.title.trim().slice(0, 120);
-  if (!input.memberId) return { ok: false, error: "请选择成员" };
-  if (!title) return { ok: false, error: "任务标题不能为空" };
-  if (!TASK_CATEGORIES.includes(input.category as TaskCategory)) {
-    return { ok: false, error: "分类只能是 study / review / exercise" };
-  }
-  if (input.dueDate && Number.isNaN(Date.parse(input.dueDate))) {
-    return { ok: false, error: "截止日期格式不对" };
-  }
-
-  const { error } = await getSupabase().from("tasks").insert({
-    member_id: input.memberId,
-    title,
-    category: input.category as TaskCategory,
-    due_date: input.dueDate || null,
-    status: "active",
-  });
-
-  if (error) return { ok: false, error: `创建任务失败：${error.message}` };
   return { ok: true };
 }
