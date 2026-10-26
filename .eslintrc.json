@@ -1,0 +1,12 @@
+{
+  "extends": ["next/core-web-vitals"],
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "Identifier[name=/^(amount|price|money|balance|ledger|settlement|payout|wallet|invoice|student|parent|teacher)$/i]",
+        "message": "本项目不做金额/账本/日结/余额/转账，也不使用 student/parent/teacher 命名。"
+      }
+    ]
+  }
+}

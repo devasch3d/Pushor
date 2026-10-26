@@ -1,0 +1,99 @@
+import Link from "next/link";
+import { TerminalSquare } from "lucide-react";
+
+import { LogoutButton } from "@/components/terminal/logout-button";
+import { RoleBadge } from "@/components/terminal/status-badge";
+import { APP_TIME_ZONE } from "@/lib/time";
+import type { Profile } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+interface TerminalShellProps {
+  profile: Profile;
+  /** 顶部命令行提示里显示的命令，例如 `member submit --watch` */
+  command: string;
+  /** 启动横幅下面那行 boot log */
+  bootNote?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+/**
+ * 页面级终端外壳：ASCII 横幅 + 身份状态栏 + 内容区 + 页脚。
+ * 所有页面（/member、/admin、/login）共用这一层视觉。
+ */
+export function TerminalShell({
+  profile,
+  command,
+  bootNote,
+  children,
+  className,
+}: TerminalShellProps) {
+  const who = profile.display_name || profile.id.slice(0, 8);
+
+  return (
+    <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-3 py-5 sm:px-5">
+      <header className="term-panel">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
+          <span className="flex items-center gap-2 text-primary term-glow">
+            <TerminalSquare className="h-4 w-4" aria-hidden />
+            <span className="font-semibold uppercase tracking-[0.2em] text-xs sm:text-sm">
+              screenshot-review-terminal
+            </span>
+          </span>
+          <span className="hidden text-[11px] text-term-dim sm:inline" aria-hidden>
+            v0.1.0 · member-checkin · manual-review-only
+          </span>
+
+          <div className="ml-auto flex items-center gap-3">
+            <span className="hidden font-mono text-[11px] text-muted-foreground md:inline">
+              tz={APP_TIME_ZONE}
+            </span>
+            <span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+              <span className="text-term-dim">user=</span>
+              <span className="text-foreground">{who}</span>
+              <RoleBadge role={profile.role} />
+            </span>
+            <LogoutButton />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 border-t border-border px-3 py-1.5 font-mono text-[11px] text-muted-foreground">
+          <span className="text-primary">{profile.role}@review</span>
+          <span className="text-term-dim">:</span>
+          <span className="text-foreground">~</span>
+          <span className="text-primary" aria-hidden>
+            $&nbsp;
+          </span>
+          <span className="text-foreground">{command}</span>
+          <span
+            aria-hidden
+            className="inline-block h-[1em] w-[0.5em] translate-y-[0.15em] animate-caret-blink bg-primary"
+          />
+        </div>
+      </header>
+
+      {bootNote ? (
+        <p className="px-1 font-mono text-[11px] text-term-dim">
+          <span aria-hidden># </span>
+          {bootNote}
+        </p>
+      ) : null}
+
+      <main className={cn("flex flex-1 flex-col gap-4", className)}>{children}</main>
+
+      <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-1 pt-3 font-mono text-[10px] text-term-dim">
+        <span>screenshot-review-terminal</span>
+        <span aria-hidden>·</span>
+        <span>只做截图提交与人工审核</span>
+        <span aria-hidden>·</span>
+        <span>审核结论由管理员逐条给出，系统不做任何自动汇总</span>
+        <Link
+          href={profile.role === "admin" ? "/admin" : "/member"}
+          className="ml-auto hover:text-primary"
+        >
+          [ 回到主控台 ]
+        </Link>
+      </footer>
+    </div>
+  );
+}

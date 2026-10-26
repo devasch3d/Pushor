@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 终端风格皮肤。
+ * 这是 Web 页面套终端视觉，不是真正的 TUI —— 没有 curses、没有 PTY、
+ * 没有 ANSI 转义序列解析，只有深色背景 + 等宽字体 + 命令行式边框 + CRT 扫描线。
+ */
+
+@layer base {
+  :root {
+    --background: 120 25% 3%;
+    --foreground: 120 20% 86%;
+
+    --card: 120 22% 5%;
+    --card-foreground: 120 20% 86%;
+
+    --primary: 142 71% 60%;
+    --primary-foreground: 120 40% 6%;
+
+    --secondary: 120 16% 11%;
+    --secondary-foreground: 120 20% 86%;
+
+    --muted: 120 16% 11%;
+    --muted-foreground: 120 12% 58%;
+
+    --accent: 43 96% 56%;
+    --accent-foreground: 43 80% 10%;
+
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 40% 8%;
+
+    --border: 120 24% 19%;
+    --input: 120 24% 22%;
+    --ring: 142 71% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground font-mono antialiased;
+    /* CRT 荧光感：极淡的绿色辉光 + 暗角 */
+    background-image:
+      radial-gradient(ellipse at 50% 0%, hsl(120 30% 9%) 0%, hsl(120 25% 3%) 60%),
+      linear-gradient(hsl(120 25% 3%), hsl(120 25% 3%));
+    background-attachment: fixed;
+  }
+
+  /* 全局扫描线 + 轻微网格，纯装饰，pointer-events 关掉不影响交互 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(0 0 0 / 0.22) 0px,
+      rgb(0 0 0 / 0.22) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 51;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 55%,
+      rgb(0 0 0 / 0.45) 100%
+    );
+  }
+
+  ::selection {
+    background: hsl(142 71% 60% / 0.32);
+    color: hsl(120 20% 96%);
+  }
+
+  /* 终端风格的滚动条 */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(120 22% 5%);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(120 24% 22%);
+    border: 2px solid hsl(120 22% 5%);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(142 40% 32%);
+  }
+}
+
+@layer components {
+  /* 命令行式边框面板：左上角带 prompt 标记 */
+  .term-panel {
+    @apply border border-border bg-card/70 backdrop-blur-[1px];
+    box-shadow: inset 0 0 0 1px rgb(74 222 128 / 0.04);
+  }
+
+  .term-panel-header {
+    @apply flex items-center gap-2 border-b border-border bg-secondary/40 px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  .term-title {
+    @apply text-sm font-semibold tracking-[0.14em] text-primary;
+  }
+
+  /* 绿色荧光文字 */
+  .term-glow {
+    text-shadow: 0 0 6px rgb(74 222 128 / 0.45);
+  }
+
+  .term-glow-amber {
+    text-shadow: 0 0 6px rgb(251 191 36 / 0.4);
+  }
+
+  /* 命令行提示符 */
+  .term-prompt::before {
+    content: "$ ";
+    @apply text-primary;
+  }
+
+  /* ASCII 分隔线 */
+  .term-rule {
+    @apply border-t border-dashed border-border;
+  }
+
+  .term-input {
+    @apply bg-background/80 text-foreground placeholder:text-muted-foreground/70
+      border border-input focus-visible:border-primary focus-visible:outline-none
+      focus-visible:ring-1 focus-visible:ring-primary/60;
+  }
+}
+
+@layer utilities {
+  /* 隐藏原生 number/date input 的上下箭头，保持终端观感 */
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spin {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
