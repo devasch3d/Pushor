@@ -1,4 +1,4 @@
-import { ScreenshotThumb } from "@/components/terminal/screenshot-view";
+import { AttachmentRow } from "@/components/terminal/attachment";
 import { EmptyLine } from "@/components/terminal/shell";
 import { SubmissionStatusBadge } from "@/components/terminal/status-badge";
 import { formatShort } from "@/lib/time";
@@ -59,35 +59,29 @@ function ReviewedGroup({
       ) : (
         <ul className="divide-y divide-border/60">
           {items.map((submission) => (
-            <li key={submission.id} className="flex items-start gap-2 p-2">
-              <ScreenshotThumb
-                src={submission.signed_url}
-                alt={`${submission.event ?? "提交"} 的附件`}
-                size={56}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-mono text-xs text-foreground">
-                    {submission.event ?? "（无事件名）"}
-                  </span>
-                  <SubmissionStatusBadge status={submission.status} />
-                </div>
-                <p className="font-mono text-[10px] text-muted-foreground">
-                  {submission.member?.display_name ?? submission.member_id.slice(0, 8)} · 审于{" "}
-                  {formatShort(submission.reviewed_at)}
-                </p>
-                {submission.admin_note?.trim() ? (
-                  <p
-                    className={cn(
-                      "mt-1 break-words font-mono text-[10px]",
-                      tone === "green" ? "text-primary/80" : "text-destructive/90",
-                    )}
-                  >
-                    <span className="text-term-dim">admin_note&gt; </span>
-                    {submission.admin_note.trim()}
-                  </p>
-                ) : null}
+            <li key={submission.id} className="flex flex-col gap-1.5 p-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate font-mono text-xs text-foreground">
+                  {submission.event ?? "（无事件名）"}
+                </span>
+                <SubmissionStatusBadge status={submission.status} />
               </div>
+              <AttachmentRow src={submission.signed_url} label="附件" />
+              <p className="font-mono text-[10px] text-muted-foreground">
+                {submission.member?.display_name ?? submission.member_id.slice(0, 8)} · 审于{" "}
+                {formatShort(submission.reviewed_at)}
+              </p>
+              {submission.admin_note?.trim() ? (
+                <p
+                  className={cn(
+                    "break-words font-mono text-[10px]",
+                    tone === "green" ? "text-primary/80" : "text-destructive/90",
+                  )}
+                >
+                  <span className="text-term-dim">admin_note&gt; </span>
+                  {submission.admin_note.trim()}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

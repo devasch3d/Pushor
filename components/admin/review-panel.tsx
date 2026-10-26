@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Loader2, X } from "lucide-react";
 
 import { reviewSubmission } from "@/lib/api";
+import { AttachmentRow } from "@/components/terminal/attachment";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
@@ -96,20 +97,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
         ) : null}
       </div>
 
-      <div className="max-h-[52vh] overflow-auto border border-border bg-background p-2">
-        {submission.signed_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- 签名 URL 短时效，按原图展示
-          <img
-            src={submission.signed_url}
-            alt={`${submission.event ?? "提交"} 的附件`}
-            className="mx-auto max-w-full"
-          />
-        ) : (
-          <p className="px-2 py-8 text-center font-mono text-xs text-destructive">
-            签名 URL 取不到，可能是对象已被清理或 Storage 策略未生效。
-          </p>
-        )}
-      </div>
+      <AttachmentRow large src={submission.signed_url} label={`附件 · ${submission.event ?? "（无事件名）"}`} />
 
       {submission.note ? (
         <p className="whitespace-pre-wrap break-words border-l-2 border-border pl-2 font-mono text-xs text-muted-foreground">

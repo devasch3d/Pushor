@@ -3,7 +3,6 @@
 import * as React from "react";
 
 import { ReviewPanel } from "@/components/admin/review-panel";
-import { ScreenshotThumb } from "@/components/terminal/screenshot-view";
 import { EmptyLine } from "@/components/terminal/shell";
 import {
   Dialog,
@@ -13,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatShort, fromNow } from "@/lib/time";
-import type { SignedSubmission } from "@/lib/types";
+import { refExtension, type SignedSubmission } from "@/lib/types";
 
 /**
  * 待审队列。
@@ -50,16 +49,14 @@ export function PendingQueue({
               <span className="mt-0.5 w-7 shrink-0 font-mono text-[10px] text-term-dim">
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <ScreenshotThumb
-                src={submission.signed_url}
-                alt={`${submission.event ?? "提交"} 的附件缩略图`}
-                size={72}
-              />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs text-foreground">
                   {submission.event ?? "（无事件名）"}
                 </span>
-                <span className="mt-1 block truncate font-mono text-[10px] text-muted-foreground">
+                <span className="mt-1 block font-mono text-[10px] uppercase text-term-dim">
+                  .{submission.signed_url ? refExtension(submission.image_url) || "bin" : "已清理"}
+                </span>
+                <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground">
                   {submission.member?.display_name ?? submission.member_id.slice(0, 8)}
                 </span>
                 <span className="mt-0.5 block font-mono text-[10px] text-accent">

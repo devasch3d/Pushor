@@ -61,7 +61,7 @@ export default function AdminPage() {
 
       <Panel
         title="待审队列"
-        hint={fetching ? "读取中…" : `pending=${pending.length} · 按提交时间升序，先到先得`}
+        hint={fetching ? "读取中…" : `pending=${pending.length} · 按提交时间升序`}
       >
         <PendingQueue submissions={pending} onReviewed={() => void load()} />
       </Panel>

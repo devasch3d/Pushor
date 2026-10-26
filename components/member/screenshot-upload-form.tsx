@@ -11,11 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
 import { getSupabase } from "@/lib/supabase/client";
 import { uploadScreenshot } from "@/lib/storage";
-import {
-  MAX_UPLOAD_BYTES,
-  isPreviewableImage,
-  validateUploadFile,
-} from "@/lib/types";
+import { MAX_UPLOAD_BYTES, validateUploadFile } from "@/lib/types";
 
 interface ScreenshotUploadFormProps {
   memberId: string;
@@ -182,43 +178,31 @@ export function ScreenshotUploadForm({
         />
         <p className="font-mono text-[11px] text-term-dim">
           格式不限，单个文件不超过 {MAX_UPLOAD_BYTES / 1024 / 1024} MB。
-          上传到私有空间，只有你和管理员能看到。
         </p>
       </div>
 
-      {preview && file ? (
-        <div className="flex items-start gap-3 border border-border bg-background/60 p-2">
-          {isPreviewableImage(file.type || file.name) ? (
-            // eslint-disable-next-line @next/next/no-img-element -- 本地预览用 object URL
-            <img
-              src={preview}
-              alt="待提交文件预览"
-              className="h-24 w-24 shrink-0 border border-border object-cover"
-            />
-          ) : (
-            <span className="flex h-24 w-24 shrink-0 flex-col items-center justify-center border border-border font-mono text-[10px] uppercase text-term-dim">
-              .{(file.name.split(".").pop() ?? "bin").slice(0, 6)}
-            </span>
-          )}
-          <div className="min-w-0 flex-1 font-mono text-[11px] text-muted-foreground">
-            <p className="truncate text-foreground">{file.name}</p>
-            <p>size={(file.size / 1024).toFixed(0)} KB</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="mt-1"
-              disabled={busy}
-              onClick={() => {
-                if (preview) URL.revokeObjectURL(preview);
-                setPreview(null);
-                setFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-              }}
-            >
-              撤销选择
-            </Button>
-          </div>
+      {file ? (
+        <div className="flex items-center gap-2 border border-border bg-background/60 px-2 py-1.5">
+          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
+            {file.name}
+          </span>
+          <span className="shrink-0 font-mono text-[10px] text-term-dim">
+            {(file.size / 1024).toFixed(0)} KB
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => {
+              if (preview) URL.revokeObjectURL(preview);
+              setPreview(null);
+              setFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+          >
+            撤销
+          </Button>
         </div>
       ) : null}
 
