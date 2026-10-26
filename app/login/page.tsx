@@ -1,27 +1,40 @@
-import { redirect } from "next/navigation";
+"use client";
 
-import { LoginForm } from "@/components/auth/login-form";
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { TerminalSquare } from "lucide-react";
 
-import { getProfile, getSession, homePathFor } from "@/lib/session";
+import { LoginForm } from "@/components/auth/login-form";
+import { BootScreen } from "@/components/terminal/boot-screen";
+import { useProfile } from "@/lib/hooks";
 
-export const dynamic = "force-dynamic";
-
-interface LoginPageProps {
-  searchParams?: { error?: string };
+/**
+ * 登录页。
+ * useSearchParams 在静态导出下必须包在 Suspense 里，所以拆成内层组件。
+ */
+export default function LoginPage() {
+  return (
+    <React.Suspense fallback={<BootScreen text="loading login…" />}>
+      <LoginInner />
+    </React.Suspense>
+  );
 }
 
-export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const errorCode = searchParams?.error;
+function LoginInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const errorCode = searchParams.get("error") ?? undefined;
+  const { user, profile, loading } = useProfile();
 
-  // 已登录就别停在登录页。no_profile 是例外：那条错误本身就是要显示给用户看的，
+  // 已登录就别停在登录页。no_profile 是例外：那条提示本身要显示给用户看，
   // 再跳转会和根页面的守卫形成死循环。
-  if (errorCode !== "no_profile") {
-    const { user } = await getSession();
-    if (user) {
-      const profile = await getProfile();
-      redirect(homePathFor(profile?.role ?? "member"));
-    }
+  React.useEffect(() => {
+    if (loading || errorCode === "no_profile") return;
+    if (user) router.replace(profile?.role === "admin" ? "/admin" : "/member");
+  }, [loading, user, profile, errorCode, router]);
+
+  if (loading && errorCode !== "no_profile") {
+    return <BootScreen text="checking session…" />;
   }
 
   return (

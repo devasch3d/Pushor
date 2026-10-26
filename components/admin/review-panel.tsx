@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, Loader2, X } from "lucide-react";
 
-import { reviewSubmission } from "@/app/admin/actions";
+import { reviewSubmission } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
@@ -17,6 +16,8 @@ interface ReviewDialogProps {
   submission: SignedSubmission;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 审核完成后让外层重新拉队列 */
+  onReviewed?: () => void;
 }
 
 type Stage = "view" | "rejecting" | "busy";
@@ -26,13 +27,12 @@ type Stage = "view" | "rejecting" | "busy";
  * 点「驳回」就地展开一个必填原因输入框 —— 原因留空提交会被前端拦住，
  * 数据库层的 RLS with check 和 trigger 也会再拦一次。
  */
-export function ReviewPanel({ submission, open, onOpenChange }: ReviewDialogProps) {
+export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: ReviewDialogProps) {
   const [stage, setStage] = React.useState<Stage>("view");
   const [reason, setReason] = React.useState("");
   const [approveNote, setApproveNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState<string | null>(null);
-  const router = useRouter();
 
   React.useEffect(() => {
     if (open) {
@@ -64,12 +64,12 @@ export function ReviewPanel({ submission, open, onOpenChange }: ReviewDialogProp
     if (!result.ok) {
       setError(result.error ?? "审核失败");
       setStage(decision === "rejected" ? "rejecting" : "view");
-      router.refresh();
+      onReviewed?.();
       return;
     }
 
     setDone(decision === "approved" ? "已通过" : "已驳回，原因已回传给成员");
-    router.refresh();
+    onReviewed?.();
     // 让成功提示闪一下再关掉，管理员能确认这次点击生效了
     window.setTimeout(() => onOpenChange(false), 450);
   }

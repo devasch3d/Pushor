@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 
 import {
@@ -25,6 +24,8 @@ interface ResubmitDialogProps {
   submissionId: string;
   taskId: string;
   adminNote: string | null;
+  /** 重新提交成功后让外层重新拉数据 */
+  onChanged?: () => void;
 }
 
 /**
@@ -39,9 +40,9 @@ export function ResubmitDialog({
   submissionId,
   taskId,
   adminNote,
+  onChanged,
 }: ResubmitDialogProps) {
   const [open, setOpen] = React.useState(false);
-  const router = useRouter();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -77,7 +78,7 @@ export function ResubmitDialog({
             submitLabel="resubmit"
             onSuccess={() => {
               setOpen(false);
-              router.refresh();
+              onChanged?.();
             }}
           />
         </div>

@@ -3,14 +3,14 @@
 import * as React from "react";
 import { Loader2, Upload } from "lucide-react";
 
-import { submitScreenshot } from "@/app/member/actions";
+import { submitScreenshot } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { getSupabase } from "@/lib/supabase/client";
 import { uploadScreenshot } from "@/lib/storage";
 import {
   CATEGORY_LABEL,
@@ -118,14 +118,17 @@ export function ScreenshotUploadForm({
 
     try {
       setPhase("uploading");
-      const supabase = await getSupabaseBrowserClient();
+      const supabase = getSupabase();
       // 主路径直传私有 bucket；托管环境没有 Storage 时自动降级为内联存储（见 lib/storage.ts）
       const uploaded = await uploadScreenshot(supabase, memberId, file);
 
       setPhase("saving");
-      const result = await submitScreenshot(
-        buildPayload({ taskId, imagePath: uploaded.imageRef, note, replacesId }),
-      );
+      const result = await submitScreenshot({
+        taskId,
+        imageRef: uploaded.imageRef,
+        note,
+        replacesId,
+      });
 
       if (!result.ok) {
         setError(result.error ?? "提交失败");
@@ -266,7 +269,7 @@ export function ScreenshotUploadForm({
         />
       </div>
 
-      <Button type="submit" disabled={busy || noTasks && !lockedTaskId}>
+      <Button type="submit" disabled={busy || (noTasks && !lockedTaskId)}>
         {busy ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -281,18 +284,4 @@ export function ScreenshotUploadForm({
       </Button>
     </form>
   );
-}
-
-function buildPayload(input: {
-  taskId: string;
-  imagePath: string;
-  note: string;
-  replacesId?: string;
-}): FormData {
-  const formData = new FormData();
-  formData.set("task_id", input.taskId);
-  formData.set("image_path", input.imagePath);
-  formData.set("note", input.note);
-  if (input.replacesId) formData.set("replaces_id", input.replacesId);
-  return formData;
 }

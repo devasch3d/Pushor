@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, Loader2, Plus } from "lucide-react";
 
-import { archiveTask, restoreTask } from "@/app/admin/actions";
+import { setTaskStatus } from "@/lib/api";
 import { NewTaskForm } from "@/components/admin/new-task-form";
 import { Button } from "@/components/ui/button";
 import { ErrorLine } from "@/components/terminal/shell";
@@ -14,29 +13,32 @@ import type { Profile, TaskWithMember } from "@/lib/types";
 interface TaskManagerProps {
   tasks: TaskWithMember[];
   profiles: Pick<Profile, "id" | "role" | "display_name">[];
+  /** 数据变化后让外层重新拉取 */
+  onChanged?: () => void;
 }
 
 /** 任务管理：列表 + 归档 / 取消归档 + 手动新建 */
-export function TaskManager({ tasks, profiles }: TaskManagerProps) {
+export function TaskManager({ tasks, profiles, onChanged }: TaskManagerProps) {
   const [showForm, setShowForm] = React.useState(false);
   const [busyId, setBusyId] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const router = useRouter();
 
   async function toggleArchive(task: TaskWithMember) {
     if (busyId) return;
     setBusyId(task.id);
     setError(null);
 
-    const result =
-      task.status === "active" ? await archiveTask(task.id) : await restoreTask(task.id);
+    const result = await setTaskStatus(
+      task.id,
+      task.status === "active" ? "archived" : "active",
+    );
 
     setBusyId(null);
     if (!result.ok) {
       setError(result.error ?? "操作失败");
       return;
     }
-    router.refresh();
+    onChanged?.();
   }
 
   return (
@@ -59,7 +61,12 @@ export function TaskManager({ tasks, profiles }: TaskManagerProps) {
         </span>
       </div>
 
-      <NewTaskForm profiles={profiles} open={showForm} onOpenChange={setShowForm} />
+      <NewTaskForm
+        profiles={profiles}
+        open={showForm}
+        onOpenChange={setShowForm}
+        onChanged={onChanged}
+      />
 
       {tasks.length === 0 ? (
         <p className="px-1 py-6 text-center font-mono text-xs text-muted-foreground">

@@ -1,22 +1,52 @@
-import { ScreenshotUploadForm, type SubmittableTask } from "@/components/member/screenshot-upload-form";
+"use client";
+
+import * as React from "react";
+
+import type { SubmittableTask } from "@/components/member/screenshot-upload-form";
+import { ScreenshotUploadForm } from "@/components/member/screenshot-upload-form";
 import { MySubmissions } from "@/components/member/my-submissions";
-import { EmptyLine, Panel } from "@/components/terminal/shell";
+import { BootScreen } from "@/components/terminal/boot-screen";
+import { ErrorLine, Panel } from "@/components/terminal/shell";
 import { TerminalShell } from "@/components/terminal/terminal-shell";
 import { CategoryTag, TaskStatusBadge } from "@/components/terminal/status-badge";
 import { fetchMySubmissions, fetchMyTasks } from "@/lib/queries";
-import { requireMember } from "@/lib/session";
+import { getSupabase } from "@/lib/supabase/client";
+import { useRequireRole } from "@/lib/hooks";
 import { localDayString } from "@/lib/time";
-import type { Task } from "@/lib/types";
+import type { SignedSubmission, Task } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export default function MemberPage() {
+  const { profile, loading } = useRequireRole("member");
 
-export default async function MemberPage() {
-  const { supabase, profile } = await requireMember();
+  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [submissions, setSubmissions] = React.useState<SignedSubmission[]>([]);
+  const [dataError, setDataError] = React.useState<string | null>(null);
+  const [fetching, setFetching] = React.useState(true);
 
-  const [tasks, submissions] = await Promise.all([
-    fetchMyTasks(supabase, profile.id),
-    fetchMySubmissions(supabase, profile.id),
-  ]);
+  const load = React.useCallback(async () => {
+    if (!profile) return;
+    setFetching(true);
+    setDataError(null);
+    try {
+      const supabase = getSupabase();
+      const [taskRows, submissionRows] = await Promise.all([
+        fetchMyTasks(supabase, profile.id),
+        fetchMySubmissions(supabase, profile.id),
+      ]);
+      setTasks(taskRows as Task[]);
+      setSubmissions(submissionRows);
+    } catch (thrown) {
+      setDataError(thrown instanceof Error ? thrown.message : "读取数据失败");
+    } finally {
+      setFetching(false);
+    }
+  }, [profile]);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading || !profile) return <BootScreen text="member checkin --init…" />;
 
   // 只有进行中的任务能提交；已归档的在列表里展示但不能选
   const submittable: SubmittableTask[] = tasks
@@ -42,21 +72,23 @@ export default async function MemberPage() {
       command="member checkin --list --submit"
       bootNote={`session ready · role=${profile.role} · 今日 ${localDayString(new Date())}`}
     >
+      {dataError ? <ErrorLine>{dataError}</ErrorLine> : null}
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <Panel
           title="任务列表"
-          hint={`${submittable.length}/${tasks.length} 可提交`}
+          hint={fetching ? "读取中…" : `${submittable.length}/${tasks.length} 可提交`}
           className="order-2 lg:order-1"
         >
           <TaskList tasks={tasks} />
         </Panel>
 
-        <Panel
-          title="提交截图"
-          hint="status → pending"
-          className="order-1 lg:order-2"
-        >
-          <ScreenshotUploadForm memberId={profile.id} tasks={submittable} />
+        <Panel title="提交截图" hint="status → pending" className="order-1 lg:order-2">
+          <ScreenshotUploadForm
+            memberId={profile.id}
+            tasks={submittable}
+            onSuccess={() => void load()}
+          />
         </Panel>
       </div>
 
@@ -64,7 +96,12 @@ export default async function MemberPage() {
         title="我的提交"
         hint={`pending ${counts.pending} · approved ${counts.approved} · rejected ${counts.rejected}`}
       >
-        <MySubmissions memberId={profile.id} submissions={submissions} tasks={submittable} />
+        <MySubmissions
+          memberId={profile.id}
+          submissions={submissions}
+          tasks={submittable}
+          onChanged={() => void load()}
+        />
       </Panel>
     </TerminalShell>
   );
@@ -73,9 +110,10 @@ export default async function MemberPage() {
 function TaskList({ tasks }: { tasks: Task[] }) {
   if (tasks.length === 0) {
     return (
-      <EmptyLine>
+      <p className="px-1 py-6 text-center font-mono text-xs text-muted-foreground">
+        <span className="text-term-dim"># </span>
         还没有分配给你的任务。任务由管理员创建，可以催一下。
-      </EmptyLine>
+      </p>
     );
   }
 

@@ -23,7 +23,13 @@ import type { SignedSubmission } from "@/lib/types";
  * 这里只负责渲染和「点开大图 → 通过 / 驳回」的交互。
  * 队列是客户端组件，因为要维护当前打开的是哪一条。
  */
-export function PendingQueue({ submissions }: { submissions: SignedSubmission[] }) {
+export function PendingQueue({
+  submissions,
+  onReviewed,
+}: {
+  submissions: SignedSubmission[];
+  onReviewed?: () => void;
+}) {
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const active = submissions.find((item) => item.id === activeId) ?? null;
 
@@ -87,6 +93,7 @@ export function PendingQueue({ submissions }: { submissions: SignedSubmission[] 
               submission={active}
               open={active !== null}
               onOpenChange={(open) => !open && setActiveId(null)}
+              onReviewed={onReviewed}
             />
           ) : null}
         </DialogContent>

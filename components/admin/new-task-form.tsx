@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 
-import { createTask } from "@/app/admin/actions";
+import { createTask } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +15,8 @@ interface NewTaskFormProps {
   profiles: Pick<Profile, "id" | "role" | "display_name">[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 创建成功后让外层重新拉取 */
+  onChanged?: () => void;
 }
 
 /**
@@ -23,8 +24,7 @@ interface NewTaskFormProps {
  * 需求明确不做日历同步，所以任务就在这里手动创建；
  * 成员端不能自己造任务（tasks 的 insert policy 只允许 admin）。
  */
-export function NewTaskForm({ profiles, open, onOpenChange }: NewTaskFormProps) {
-  const router = useRouter();
+export function NewTaskForm({ profiles, open, onOpenChange, onChanged }: NewTaskFormProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
@@ -37,11 +37,17 @@ export function NewTaskForm({ profiles, open, onOpenChange }: NewTaskFormProps) 
     if (pending) return;
 
     const form = event.currentTarget;
+    const formData = new FormData(form);
     setPending(true);
     setError(null);
     setOk(null);
 
-    const result = await createTask(new FormData(form));
+    const result = await createTask({
+      memberId: String(formData.get("member_id") ?? ""),
+      title: String(formData.get("title") ?? ""),
+      category: String(formData.get("category") ?? ""),
+      dueDate: String(formData.get("due_date") ?? ""),
+    });
 
     setPending(false);
     if (!result.ok) {
@@ -51,7 +57,7 @@ export function NewTaskForm({ profiles, open, onOpenChange }: NewTaskFormProps) 
 
     setOk("任务已创建，成员端刷新就能看到。");
     form.reset();
-    router.refresh();
+    onChanged?.();
   }
 
   if (!open) return null;

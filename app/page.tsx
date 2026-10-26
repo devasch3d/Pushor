@@ -1,11 +1,24 @@
-import { redirect } from "next/navigation";
+"use client";
 
-import { requireProfile, homePathFor } from "@/lib/session";
+import * as React from "react";
+import { useRouter } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+import { BootScreen } from "@/components/terminal/boot-screen";
+import { useProfile } from "@/lib/hooks";
 
-/** 根路径：按 role 分流到 /admin 或 /member；未登录会被 requireProfile 送去 /login */
-export default async function RootPage() {
-  const { profile } = await requireProfile();
-  redirect(homePathFor(profile.role));
+/** 根路径：按 role 分流到 /admin 或 /member；未登录去 /login */
+export default function RootPage() {
+  const router = useRouter();
+  const { user, profile, loading } = useProfile();
+
+  React.useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    router.replace(profile?.role === "admin" ? "/admin" : "/member");
+  }, [loading, user, profile, router]);
+
+  return <BootScreen text="booting session…" />;
 }

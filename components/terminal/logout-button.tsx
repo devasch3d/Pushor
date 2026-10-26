@@ -1,13 +1,23 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
-import { signOut } from "@/app/auth/actions";
+import { signOutUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 export function LogoutButton() {
-  const [pending, startTransition] = React.useTransition();
+  const router = useRouter();
+  const [pending, setPending] = React.useState(false);
+
+  async function onClick() {
+    if (pending) return;
+    setPending(true);
+    await signOutUser();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <Button
@@ -15,7 +25,7 @@ export function LogoutButton() {
       variant="ghost"
       size="sm"
       disabled={pending}
-      onClick={() => startTransition(() => void signOut())}
+      onClick={() => void onClick()}
       aria-label="登出"
     >
       <LogOut className="h-3 w-3" />

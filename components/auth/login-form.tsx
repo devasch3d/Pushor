@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, Mail, Terminal, UserPlus } from "lucide-react";
 
-import { signInWithPassword, signUpWithPassword } from "@/app/auth/actions";
+import { signIn, signUp } from "@/lib/api";
+import { getSupabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,22 +15,22 @@ import { cn } from "@/lib/utils";
 type Mode = "signin" | "signup";
 
 const BANNER = [
-  "╔═╗╔═╗╔═╗╔╦╗╔═╗╦ ╦╔═╗",
+  "╔═╗╔═╗╔═╗╔╦╗╔═╗ ╦╔═╗",
   "╚═╗║  ║╣ ║║║╠╣ ╠═╣║  ",
   "╚═╝╚═╝╚═╝╩ ╩╚  ╩ ╩╚═╝",
 ].join("\n");
-
-interface LoginFormProps {
-  /** middleware 或守卫传过来的提示，例如 no_profile */
-  errorCode?: string;
-}
 
 const ERROR_HINTS: Record<string, string> = {
   no_profile:
     "登录成功了，但没能建立 profiles 记录。请联系管理员在数据库里手动为你插入一行 profiles（见 README「手动把用户设为 admin」）。",
 };
 
+interface LoginFormProps {
+  errorCode?: string;
+}
+
 export function LoginForm({ errorCode }: LoginFormProps) {
+  const router = useRouter();
   const [mode, setMode] = React.useState<Mode>("signin");
   const [error, setError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
@@ -48,19 +50,42 @@ export function LoginForm({ errorCode }: LoginFormProps) {
     const form = event.currentTarget;
     const formData = new FormData(form);
 
+    const email = String(formData.get("email") ?? "");
+    const password = String(formData.get("password") ?? "");
+    const displayName = String(formData.get("display_name") ?? "");
+
     setPending(true);
     setError(null);
     setNotice(null);
 
     try {
-      const action = mode === "signin" ? signInWithPassword : signUpWithPassword;
-      const result = await action(formData);
-      // 成功路径里 server action 会直接 redirect，走不到这里
-      if (result?.error) setError(result.error);
-      if (result?.notice) setNotice(result.notice);
+      const result =
+        mode === "signin"
+          ? await signIn(email, password)
+          : await signUp(email, password, displayName);
+
+      if (!result.ok) {
+        setError(result.error ?? "请求失败，请重试");
+        return;
+      }
+
+      if (result.needsConfirm) {
+        setNotice(
+          "注册成功。请去邮箱点确认链接，然后回来登录。默认角色是 member，管理员会在数据库里按需把你改成 admin。",
+        );
+        return;
+      }
+
+      // 登录成功：读一次 role 决定去哪
+      const {
+        data: { user },
+      } = await getSupabase().auth.getUser();
+      const { data: profile } = user
+        ? await getSupabase().from("profiles").select("role").eq("id", user.id).maybeSingle()
+        : { data: null };
+      router.replace(profile?.role === "admin" ? "/admin" : "/member");
+      router.refresh();
     } catch (thrown) {
-      // redirect() 抛出的是内部控制流错误，不该当成失败展示
-      if (thrown instanceof Error && thrown.message.startsWith("NEXT_REDIRECT")) throw thrown;
       setError(thrown instanceof Error ? thrown.message : "请求失败，请重试");
     } finally {
       setPending(false);
@@ -74,9 +99,7 @@ export function LoginForm({ errorCode }: LoginFormProps) {
     <div className="term-panel w-full max-w-md">
       <header className="term-panel-header">
         <Terminal className="h-3.5 w-3.5 text-primary" aria-hidden />
-        <span className="term-title">
-          {isSignIn ? "auth --login" : "auth --register"}
-        </span>
+        <span className="term-title">{isSignIn ? "auth --login" : "auth --register"}</span>
         <span className="ml-auto text-[11px] normal-case tracking-normal text-term-dim">
           supabase · email+password
         </span>

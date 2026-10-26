@@ -11,14 +11,14 @@ interface MySubmissionsProps {
   submissions: SignedSubmission[];
   /** 可重新提交的任务集合（进行中的任务） */
   tasks: SubmittableTask[];
+  /** 数据变化后让外层重新拉取 */
+  onChanged?: () => void;
 }
 
 /**
  * 「我的提交」列表：状态、驳回原因、以及被驳回记录的「重新提交」入口。
- *
- * 这里是纯服务端渲染，只有重新提交那个按钮是客户端组件。
  */
-export function MySubmissions({ memberId, submissions, tasks }: MySubmissionsProps) {
+export function MySubmissions({ memberId, submissions, tasks, onChanged }: MySubmissionsProps) {
   if (submissions.length === 0) {
     return <EmptyLine>还没有提交记录。上面选个任务、传张截图就行。</EmptyLine>;
   }
@@ -90,6 +90,7 @@ export function MySubmissions({ memberId, submissions, tasks }: MySubmissionsPro
                   submissionId={submission.id}
                   taskId={submission.task_id}
                   adminNote={submission.admin_note}
+                  onChanged={onChanged}
                 />
               </div>
             ) : null}
