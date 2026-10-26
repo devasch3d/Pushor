@@ -10,7 +10,7 @@ import { TerminalShell } from "@/components/terminal/terminal-shell";
 import { fetchPendingQueue, fetchTodayReviewed } from "@/lib/queries";
 import { getSupabase } from "@/lib/supabase/client";
 import { useRequireRole } from "@/lib/hooks";
-import { APP_TIME_ZONE, todayRange } from "@/lib/time";
+import { todayRange } from "@/lib/time";
 import type { SignedSubmission } from "@/lib/types";
 
 /** 管理端只负责接收和评定：待审队列 + 今日已审 */
@@ -55,7 +55,7 @@ export default function AdminPage() {
     <TerminalShell
       profile={profile}
       command="admin review --queue --today"
-      bootNote={`review console · tz=${APP_TIME_ZONE} · day=${day}`}
+      bootNote={`review console · day=${day}`}
     >
       {dataError ? <ErrorLine>{dataError}</ErrorLine> : null}
 

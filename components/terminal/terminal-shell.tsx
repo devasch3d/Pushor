@@ -1,7 +1,6 @@
 import { LogoutButton } from "@/components/terminal/logout-button";
 import { PushorLogo } from "@/components/terminal/logo";
 import { RoleBadge } from "@/components/terminal/status-badge";
-import { APP_TIME_ZONE } from "@/lib/time";
 import type { Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -40,9 +39,6 @@ export function TerminalShell({
           </span>
 
           <div className="ml-auto flex items-center gap-3">
-            <span className="hidden font-mono text-[11px] text-muted-foreground md:inline">
-              tz={APP_TIME_ZONE}
-            </span>
             <span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
               <span className="text-term-dim">user=</span>
               <span className="text-foreground">{who}</span>
