@@ -1,8 +1,8 @@
 {
-  "name": "screenshot-review-terminal",
-  "version": "0.1.0",
+  "name": "pushor",
+  "version": "0.2.0",
   "private": true,
-  "description": "成员截图验收终端 — member screenshot submission & admin manual review only.",
+  "description": "Pushor — 成员打卡截图的人工验收台（Next.js 静态导出 + Supabase，RLS 全量校验）",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

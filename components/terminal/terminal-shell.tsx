@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { TerminalSquare } from "lucide-react";
 
 import { LogoutButton } from "@/components/terminal/logout-button";
+import { PushorLogo } from "@/components/terminal/logo";
 import { RoleBadge } from "@/components/terminal/status-badge";
 import { APP_TIME_ZONE } from "@/lib/time";
 import type { Profile } from "@/lib/types";
@@ -34,14 +34,14 @@ export function TerminalShell({
     <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-4 px-3 py-5 sm:px-5">
       <header className="term-panel">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
-          <span className="flex items-center gap-2 text-primary term-glow">
-            <TerminalSquare className="h-4 w-4" aria-hidden />
-            <span className="font-semibold uppercase tracking-[0.2em] text-xs sm:text-sm">
-              screenshot-review-terminal
+          <span className="flex items-center gap-2">
+            <PushorLogo size={22} />
+            <span className="font-semibold uppercase tracking-[0.24em] text-xs text-primary term-glow sm:text-sm">
+              Pushor
             </span>
           </span>
           <span className="hidden text-[11px] text-term-dim sm:inline" aria-hidden>
-            v0.1.0 · member-checkin · manual-review-only
+            checkin · manual-review-only
           </span>
 
           <div className="ml-auto flex items-center gap-3">
@@ -82,7 +82,7 @@ export function TerminalShell({
       <main className={cn("flex flex-1 flex-col gap-4", className)}>{children}</main>
 
       <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-border px-1 pt-3 font-mono text-[10px] text-term-dim">
-        <span>screenshot-review-terminal</span>
+        <span>Pushor</span>
         <span aria-hidden>·</span>
         <span>只做截图提交与人工审核</span>
         <span aria-hidden>·</span>

@@ -43,8 +43,8 @@ export function useSession(): { user: User | null; loading: boolean } {
 /**
  * 当前用户的 profile。没有就自动补一条 role='member'。
  *
- * 补默认 member 让新注册用户立刻能用成员端；admin 身份只能由管理员在数据库里改 ——
- * RLS 的 profiles_insert_self_as_member 只允许 role='member'，
+ * 补默认 member 让后台新建的账号首次登录即可用成员端；admin 身份只能由管理员
+ * 在数据库里改 —— RLS 的 profiles_insert_self_as_member 只允许 role='member'，
  * profiles_update_self_or_admin 的 with check 也只允许本人保持 'member'，
  * 所以自助提权在数据库层就被堵死了。
  */

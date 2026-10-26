@@ -1,4 +1,4 @@
-# 成员截图验收终端 (screenshot-review-terminal)
+# Pushor
 
 成员在自学、复习、运动等活动结束后上传打卡截图；管理员在一个终端风格的 Web 后台里
 查看待审截图，给出 **通过** 或 **驳回（必须写原因）**。
@@ -46,7 +46,7 @@
 ```
 .
 ├── app/
-│   ├── login/page.tsx            邮箱密码登录 / 注册，成功后按 role 跳转
+│   ├── login/page.tsx            邮箱密码登录，成功后按 role 跳转（无注册入口）
 │   ├── member/page.tsx           成员端：任务列表 + 提交截图 + 我的提交
 │   ├── admin/page.tsx            管理端：待审队列 + 今日已审 + 任务管理
 │   ├── error.tsx · not-found.tsx · globals.css · layout.tsx · page.tsx
@@ -58,7 +58,7 @@
 │   └── auth/login-form.tsx
 ├── lib/
 │   ├── supabase/client.ts        浏览器端 Supabase 单例（NEXT_PUBLIC_* 构建期内联）
-│   ├── api.ts                    所有写操作：登录/注册/提交/审核/归档/建任务
+│   ├── api.ts                    所有写操作：登录/提交/审核/归档/建任务
 │   ├── hooks.tsx                 useSession / useProfile / useRequireRole 守卫
 │   ├── queries.ts                所有读查询 + 批量签名 URL
 │   ├── storage.ts                截图上传（Storage 主路径 + 无 Storage 环境内联降级）
@@ -109,12 +109,15 @@ Supabase 控制台 **SQL Editor** → 新建查询 → 把
 那是因为脚本里有 `drop policy if exists` / `alter table ... enable row level security`。
 在全新库上这些 drop 都是空操作，可以放心 Run。
 
-### 4. 邮箱确认开关
+### 4. 创建账号（页面没有注册入口）
 
-**Authentication → Sign In / Up → Email**：
+账号统一由管理员在 Supabase 后台建：
 
-- 本地调试 / 跑验收脚本：关掉 **Confirm email**（注册直接拿会话）
-- 生产环境：打开
+**Authentication → Users → Add user** → 填邮箱和密码 →
+勾选 **Auto Confirm User**（跳过邮件确认）→ Create。
+
+成员和你自己都这么建。建完让他去 `pushor.pages.dev` 登录即可，
+首次登录时应用会自动插一行 `role='member'` 的 profiles。
 
 ### 5. 起服务
 
@@ -141,8 +144,9 @@ node scripts/acceptance-test.mjs   # 27 条 RLS 验收
 
 角色只存在 `profiles.role` 里，**页面上没有提权入口**，也不做邀请流程。
 
-1. 先让这个人注册一次（首次登录时应用会自动插一行 `role='member'`；
-   RLS 的 insert 策略只允许 `role='member'`，所以不可能自助提权）。
+1. 先按上面「创建账号」给他建好账号，并让他登录一次
+   （首次登录会自动插一行 `role='member'`；RLS 的 insert 策略只允许
+   `role='member'`，所以不可能自助提权）。
 2. SQL Editor 里执行：
 
    ```sql
@@ -289,7 +293,8 @@ status 强制 pending、驳回必须写原因、已审不能翻案、`replaces_i
 今日已审时间边界、签名 URL 与 bucket 私有性。全部通过退出码为 0，可挂 CI。
 
 前置：`.env.local` + 一个 `.qa.env`（两个测试账号的邮箱密码，已被 gitignore）+
-这两个账号的 profiles 已存在且 admin 那个 role 已是 admin + Confirm email 关闭。
+这两个账号的 profiles 已存在且 admin 那个 role 已是 admin；
+账号需可直接登录（建账号时勾了 Auto Confirm，或 Confirm email 处于关闭）。
 
 ---
 
@@ -309,7 +314,8 @@ status 强制 pending、驳回必须写原因、已审不能翻案、`replaces_i
 5. 挂自定义域名：Pages 项目 → **Custom domains** → 填你的域名 →
    Cloudflare 会自动写好 DNS 记录（同一个账号下不用手动加 CNAME）
 6. 回 Supabase → **Authentication → URL Configuration**：
-   Site URL 填 `https://你的域名`，Redirect URLs 加上它；并**打开 Confirm email**
+   Site URL 填 `https://你的域名`，Redirect URLs 加上它。
+   账号走后台 Add user + Auto Confirm，不依赖邮件确认流程。
 
 > 不需要 ICP 备案：服务器不在中国大陆境内。
 > 也不需要 Vercel / 任何 Node 服务器：产物是纯静态文件。

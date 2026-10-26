@@ -18,8 +18,6 @@ import { TASK_CATEGORIES, type ReviewDecision, type TaskCategory } from "@/lib/t
 export interface ActionResult {
   ok: boolean;
   error?: string;
-  /** 注册后需要去邮箱点确认链接时为 true */
-  needsConfirm?: boolean;
 }
 
 function humanizeAuthError(message: string): string {
@@ -51,34 +49,6 @@ export async function signIn(emailRaw: string, password: string): Promise<Action
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: humanizeAuthError(error.message) };
   if (!data.user) return { ok: false, error: "登录没成功，请重试" };
-
-  await ensureOwnProfile(data.user.id, data.user.email ?? email);
-  return { ok: true };
-}
-
-/** 注册。注册完只是 member，admin 身份由管理员在数据库里指定 */
-export async function signUp(
-  emailRaw: string,
-  password: string,
-  displayNameRaw: string,
-): Promise<ActionResult> {
-  const email = emailRaw.trim().toLowerCase();
-  const displayName = displayNameRaw.trim().slice(0, 40);
-  if (!email || !password) return { ok: false, error: "邮箱和密码都要填" };
-  if (password.length < 6) return { ok: false, error: "密码至少要 6 位" };
-
-  const supabase = getSupabase();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { display_name: displayName || undefined } },
-  });
-
-  if (error) return { ok: false, error: humanizeAuthError(error.message) };
-
-  // 项目开了邮箱确认时没有 session，需要用户先去邮箱点链接
-  if (!data.session) return { ok: true, needsConfirm: true };
-  if (!data.user) return { ok: false, error: "注册没成功，请重试" };
 
   await ensureOwnProfile(data.user.id, data.user.email ?? email);
   return { ok: true };

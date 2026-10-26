@@ -33,3 +33,6 @@ yarn-error.log*
 
 # 验收测试用的临时账号凭据，绝不提交
 .qa.env
+
+# wrangler 本地缓存/日志
+.wrangler/

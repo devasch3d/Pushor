@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "成员截图验收终端",
+  title: "Pushor",
   description:
-    "成员上传打卡截图，管理员在终端风格后台人工审核（通过 / 驳回）。只做提交与审核，不涉及金额、账本或支付。",
+    "Pushor — 成员上传打卡截图，管理员在终端风格后台人工审核（通过 / 驳回）。只做提交与审核。",
 };
 
 export const viewport: Viewport = {
