@@ -183,7 +183,7 @@ const run = async () => {
     member,
     "POST",
     "/rest/v1/submissions?select=id,status",
-    { task_id: taskId, member_id: memberId, image_url: ownPath, note: "验收提交 #1" },
+    { task_id: taskId, member_id: memberId, event: "验收事件", image_urls: [ownPath], note: "验收提交 #1" },
     { Prefer: "return=representation" },
   );
   const sub1 = firstRow(insertPending);
@@ -196,10 +196,33 @@ const run = async () => {
   const insertApproved = await api(member, "POST", "/rest/v1/submissions?select=id", {
     task_id: taskId,
     member_id: memberId,
+    event: "验收事件",
     image_url: ownPath,
     status: "approved",
   });
   check("成员直接插一条 approved 被拒 (403)", insertApproved.status === 403, `http ${insertApproved.status}`);
+
+  const foreignInArray = await api(member, "POST", "/rest/v1/submissions?select=id", {
+    member_id: memberId,
+    event: "验收事件",
+    image_urls: [ownPath, `${adminId}/stolen.png`],
+  });
+  check(
+    "image_urls 里混入别人目录的路径被拒 (403)",
+    foreignInArray.status === 403,
+    `http ${foreignInArray.status}`,
+  );
+
+  const tooManyFiles = await api(member, "POST", "/rest/v1/submissions?select=id", {
+    member_id: memberId,
+    event: "验收事件",
+    image_urls: Array.from({ length: 11 }, (_, i) => `${memberId}/f${i}.png`),
+  });
+  check(
+    "image_urls 超过 10 个被拒 (403)",
+    tooManyFiles.status === 403,
+    `http ${tooManyFiles.status}`,
+  );
 
   const selfApprove = await api(
     member,
@@ -267,7 +290,7 @@ const run = async () => {
     member,
     "POST",
     "/rest/v1/submissions?select=id,status,replaces_id",
-    { task_id: taskId, member_id: memberId, image_url: ownPath, note: "补了日期，重交", replaces_id: sub1?.id },
+    { task_id: taskId, member_id: memberId, event: "验收事件", image_url: ownPath, note: "补了日期，重交", replaces_id: sub1?.id },
     { Prefer: "return=representation" },
   );
   const sub2 = firstRow(resubmit);
@@ -288,6 +311,7 @@ const run = async () => {
   const badReplace = await api(member, "POST", "/rest/v1/submissions?select=id", {
     task_id: taskId,
     member_id: memberId,
+    event: "验收事件",
     image_url: ownPath,
     replaces_id: pendingTarget?.id, // 指向一条 pending，不是 rejected
   });

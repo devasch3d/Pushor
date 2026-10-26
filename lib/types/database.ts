@@ -74,7 +74,8 @@ export interface Database {
           task_id: string | null;
           member_id: string;
           event: string | null;
-          image_url: string;
+          image_url: string | null;
+          image_urls: string[] | null;
           note: string | null;
           status: "pending" | "approved" | "rejected";
           admin_note: string | null;
@@ -87,7 +88,8 @@ export interface Database {
           task_id?: string | null;
           member_id: string;
           event?: string | null;
-          image_url: string;
+          image_url?: string | null;
+          image_urls?: string[] | null;
           note?: string | null;
           status?: "pending" | "approved" | "rejected";
           admin_note?: string | null;
@@ -100,7 +102,8 @@ export interface Database {
           task_id?: string | null;
           member_id?: string;
           event?: string | null;
-          image_url?: string;
+          image_url?: string | null;
+          image_urls?: string[] | null;
           note?: string | null;
           status?: "pending" | "approved" | "rejected";
           admin_note?: string | null;

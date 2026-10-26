@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/types/database";
 import {
   STORAGE_BUCKET,
+  submissionRefs,
   type SignedSubmission,
   type SubmissionWithRelations,
 } from "@/lib/types";
@@ -13,7 +14,7 @@ type Client = SupabaseClient<Database>;
 
 /** 联表查询用的 select 片段：把提交人名字和清理记录一次取回来 */
 const SUBMISSION_SELECT = `
-  id, task_id, member_id, event, image_url, note, status, admin_note,
+  id, task_id, member_id, event, image_url, image_urls, note, status, admin_note,
   reviewed_at, replaces_id, created_at,
   member:profiles ( display_name ),
   purge:purge_log ( purged_at )
@@ -28,15 +29,17 @@ type RawSubmission = SubmissionWithRelations & {
 };
 
 /**
- * 批量把 Storage object path 换成临时签名 URL。
+ * 批量把所有提交的附件路径换成临时签名 URL。
  *
- * screenshots bucket 是私有的，image_url 里存的是对象路径而不是公开链接，
+ * screenshots bucket 是私有的，image_urls 里存的是对象路径而不是公开链接，
  * 所以每次渲染都要换一次。createSignedUrls 一次请求搞定一整页，避免 N+1。
  *
  * 两种例外：
- *   - image_url 本身就是 `data:` 内联图片（Storage 不可用环境下的降级存储）：原样返回
+ *   - 路径本身是 `data:` 内联图片（Storage 不可用环境下的降级存储）：原样返回
  *   - 签名调用整体失败（例如该环境没有 Storage）：补 null，前端渲染成占位块，
  *     不要让一个存储问题把整个列表页打挂
+ *
+ * 已被定时清理（purge_log 有记录）的提交不签名，全部给 null。
  */
 export async function withSignedUrls(
   supabase: Client,
@@ -46,15 +49,13 @@ export async function withSignedUrls(
   const storagePaths = new Set<string>();
 
   for (const row of rows) {
-    // 已被定时清理删掉的文件：不签名，直接给 null，前端显示占位块
-    if (row.purge) {
-      urlByRef.set(row.image_url, null);
-      continue;
-    }
-    if (isInlineImageRef(row.image_url)) {
-      urlByRef.set(row.image_url, row.image_url);
-    } else {
-      storagePaths.add(row.image_url);
+    if (row.purge) continue;
+    for (const ref of submissionRefs(row)) {
+      if (isInlineImageRef(ref)) {
+        urlByRef.set(ref, ref);
+      } else {
+        storagePaths.add(ref);
+      }
     }
   }
 
@@ -87,7 +88,9 @@ export async function withSignedUrls(
   return rows.map((row) => ({
     ...row,
     member: (row.member ?? null) as SignedSubmission["member"],
-    signed_url: urlByRef.get(row.image_url) ?? null,
+    signed_urls: submissionRefs(row).map((ref) =>
+      row.purge ? null : (urlByRef.get(ref) ?? null),
+    ),
   }));
 }
 

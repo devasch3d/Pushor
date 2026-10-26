@@ -71,8 +71,10 @@ export interface Submission {
   member_id: string;
   /** 成员键入的「事件」，新版提交必填 */
   event: string | null;
-  /** Storage object path，或 data: 内联图片；不是公开链接 */
-  image_url: string;
+  /** 历史字段：单附件路径；新版提交为 null，改用 image_urls */
+  image_url: string | null;
+  /** 附件路径数组（Storage object path 或 data: 内联），1..10 个；不是公开链接 */
+  image_urls: string[] | null;
   /** 成员键入的「描述」 */
   note: string | null;
   status: SubmissionStatus;
@@ -90,17 +92,34 @@ export interface SubmissionWithRelations extends Submission {
   purge: { purged_at: string } | null;
 }
 
-/** 再加上临时签名后的可显示 URL */
+/** 再加上临时签名后的可显示 URL（与附件路径数组一一对应） */
 export interface SignedSubmission extends SubmissionWithRelations {
-  signed_url: string | null;
+  signed_urls: (string | null)[];
+}
+
+/** 取一条提交的附件路径数组（兼容老记录的单 image_url 列） */
+export function submissionRefs(row: Submission): string[] {
+  if (row.image_urls && row.image_urls.length > 0) return row.image_urls;
+  return row.image_url ? [row.image_url] : [];
+}
+
+/** 附件路径 + 签名 URL 配对，供组件渲染 */
+export function submissionFiles(row: SignedSubmission): { ref: string; signedUrl: string | null }[] {
+  return submissionRefs(row).map((ref, index) => ({
+    ref,
+    signedUrl: row.signed_urls[index] ?? null,
+  }));
 }
 
 // ── Storage 约定 ─────────────────────────────────────────────────────────────
 
 export const STORAGE_BUCKET = "screenshots";
 
-/** 上传大小上限，10 MB。格式不限 */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** 一次提交最多挂几个附件（与 RLS 策略里的 cardinality 上限一致） */
+export const MAX_UPLOAD_FILES = 10;
+
+/** 一次提交所有文件的总大小上限，50 MB。格式不限 */
+export const MAX_TOTAL_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 /** 能在页面上当图片预览的扩展名；其余按「附件」展示 */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "avif", "bmp", "svg"] as const;
@@ -120,13 +139,21 @@ export function isPreviewableImage(ref: string): boolean {
   return (IMAGE_EXTENSIONS as readonly string[]).includes(refExtension(ref));
 }
 
-/** 上传校验：只限大小，不限格式 */
-export function validateUploadFile(file: File): string | null {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `文件过大：${(file.size / 1024 / 1024).toFixed(1)} MB，上限 ${MAX_UPLOAD_BYTES / 1024 / 1024} MB`;
+/** 上传校验：不限格式，限数量（≤10）与总大小（≤50 MB） */
+export function validateUploadFiles(files: File[]): string | null {
+  if (files.length === 0) return "请选择至少一个文件";
+  if (files.length > MAX_UPLOAD_FILES) {
+    return `一次最多 ${MAX_UPLOAD_FILES} 个文件，现在选了 ${files.length} 个`;
   }
-  if (file.size === 0) {
-    return "文件是空的";
+  for (const file of files) {
+    if (file.size === 0) return `文件是空的：${file.name}`;
+  }
+  const total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total > MAX_TOTAL_UPLOAD_BYTES) {
+    return (
+      `文件总大小 ${(total / 1024 / 1024).toFixed(1)} MB 超过上限 ` +
+      `${MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024} MB，去掉几个再试`
+    );
   }
   return null;
 }

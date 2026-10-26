@@ -1,5 +1,5 @@
 import { ResubmitDialog } from "@/components/member/resubmit-dialog";
-import { AttachmentRow } from "@/components/terminal/attachment";
+import { AttachmentList } from "@/components/terminal/attachment";
 import { EmptyLine } from "@/components/terminal/shell";
 import { SubmissionStatusBadge } from "@/components/terminal/status-badge";
 import { formatShort, fromNow } from "@/lib/time";
@@ -40,7 +40,7 @@ export function MySubmissions({ memberId, submissions, onChanged }: MySubmission
               ) : null}
             </div>
 
-            <AttachmentRow src={submission.signed_url} label="附件" />
+            <AttachmentList submission={submission} />
 
             <p className="font-mono text-[11px] text-muted-foreground">
               id={submission.id.slice(0, 8)} · {formatShort(submission.created_at)} (

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Check, Loader2, X } from "lucide-react";
 
 import { reviewSubmission } from "@/lib/api";
-import { AttachmentRow } from "@/components/terminal/attachment";
+import { AttachmentList } from "@/components/terminal/attachment";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
@@ -97,7 +97,7 @@ export function ReviewPanel({ submission, open, onOpenChange, onReviewed }: Revi
         ) : null}
       </div>
 
-      <AttachmentRow large src={submission.signed_url} label={`附件 · ${submission.event ?? "（无事件名）"}`} />
+      <AttachmentList large submission={submission} />
 
       {submission.note ? (
         <p className="whitespace-pre-wrap break-words border-l-2 border-border pl-2 font-mono text-xs text-muted-foreground">

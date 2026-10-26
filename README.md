@@ -66,9 +66,9 @@
 │   ├── types.ts · types/database.ts
 │   └── utils.ts
 ├── supabase/
-│   ├── migrations/000{1,2,3}_*.sql   表+索引+触发器 / RLS / Storage
-│   └── setup_all_in_one.sql          三份合并版，供控制台一次性粘贴
-├── scripts/acceptance-test.mjs   27 条 RLS / 流程验收用例，直接打 Supabase API
+│   ├── migrations/0001..0006_*.sql   表+索引+触发器 / RLS / Storage / event / purge_log / 多附件
+│   └── setup_all_in_one.sql          六份合并版，供控制台一次性粘贴
+├── scripts/acceptance-test.mjs   29 条 RLS / 流程验收用例，直接打 Supabase API
 └── .env.example
 ```
 
@@ -102,7 +102,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key>
 
 Supabase 控制台 **SQL Editor** → 新建查询 → 把
 `supabase/setup_all_in_one.sql` 的**全部内容**复制进去 → Run。
-（它是 `0001/0002/0003` 三份的合并，幂等，重复跑没事。
+（它是 `0001..0006` 六份的合并，幂等，重复跑没事。
 用 supabase CLI 的话改跑 `supabase db push`。）
 
 跑的时候 Supabase 可能弹「Potential issue detected」警告，
@@ -135,7 +135,7 @@ npm run dev          # 本地开发
 npm run typecheck    # tsc --noEmit
 npm run lint         # next lint
 npm run build        # 静态导出
-node scripts/acceptance-test.mjs   # 27 条 RLS 验收
+node scripts/acceptance-test.mjs   # 29 条 RLS 验收
 ```
 
 ---
@@ -203,16 +203,19 @@ values (
 只有三张表：
 
 ```
-profiles     id(uuid, →auth.users) · role(admin|member) · display_name · created_at
-tasks        id · member_id(→profiles) · title · category(study|review|exercise)
-             · due_date · status(active|archived) · created_at
-submissions  id · task_id(→tasks) · member_id(→profiles) · image_url · note
-             · status(pending|approved|rejected) · admin_note · reviewed_at
-             · replaces_id(→submissions) · created_at
+profiles        id(uuid, →auth.users) · role(admin|member) · display_name · created_at
+tasks           id · member_id(→profiles) · title · category(study|review|exercise)
+                · due_date · status(active|archived) · created_at      （历史遗留，新流程不用）
+submissions     id · task_id(→tasks, 可空) · member_id(→profiles) · event
+                · image_url(历史遗留, 新版为 null) · image_urls(text[], 1..10 个附件)
+                · note · status(pending|approved|rejected) · admin_note · reviewed_at
+                · replaces_id(→submissions) · created_at
+purge_log       submission_id(→submissions) · purged_at   （附件已被定时清理的台账）
 ```
 
-- **`image_url` 存 Storage 对象路径**（`<member-uuid>/<file>.png`），不是公开链接；
-  渲染时批量换 10 分钟签名 URL。
+- **`image_urls` 存 Storage 对象路径数组**（每个是 `<member-uuid>/<file>.png`），不是公开链接；
+  渲染时批量换 10 分钟签名 URL。老记录只有 `image_url`，由 migration 回填成
+  `image_urls = array[image_url]`，读取端两个字段都兼容。
 - **`replaces_id`** 用于「驳回后重新提交」：旧记录保持 `rejected` 不动，
   新建一条 `pending` 并指向旧的，形成可追溯链条。
 
@@ -262,7 +265,7 @@ create policy "submissions_admin_review" on submissions
 
 RLS 表达不了「只有某几列可以改」，所以 `0001_schema.sql` 里还有
 `BEFORE UPDATE` 触发器 `submissions_review_guard`：非 admin 直接 raise、
-非 pending 直接 raise、改了 `image_url`/`member_id`/`task_id`/`note`/
+非 pending 直接 raise、改了 `image_url`/`image_urls`/`event`/`member_id`/`task_id`/`note`/
 `replaces_id`/`created_at` 直接 raise，并自动把 `reviewed_at` 打成 `now()`。
 同理 `profiles_role_guard` 阻止非 admin 改 `role`。
 
@@ -282,7 +285,7 @@ const res = await sb.from("submissions")
 console.log(res);   // data: [] —— 命中 0 行，数据库里那条仍是 pending
 ```
 
-或者直接用仓库里的验收脚本，27 条用例一次跑完：
+或者直接用仓库里的验收脚本，29 条用例一次跑完：
 
 ```bash
 node scripts/acceptance-test.mjs
@@ -347,7 +350,8 @@ status 强制 pending、驳回必须写原因、已审不能翻案、`replaces_i
 - **静态导出没有 middleware**：未登录访问 /member、/admin 时，
   是浏览器端守卫先跳走 + RLS 保证就算不跳也拿不到数据。
   直接打开 URL 会先闪一下加载页再跳转，这是静态站点的正常表现。
-- **上传大小上限 10 MB**，格式 PNG / JPEG / WebP / GIF，浏览器侧校验。
+- **一次提交最多 10 个文件、总大小上限 50 MB**，格式不限，浏览器侧校验；
+  数据库层 RLS 同样限制数组长度 1..10 与路径归属。
   如需更严，在控制台给 `screenshots` bucket 加 `file_size_limit`。
 - **不提供删除**。截图是审核证据：Storage 没有 update/delete 策略，
   数据库没有 delete 策略，Supabase 也禁止用 SQL 直接删 storage.objects。

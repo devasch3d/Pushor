@@ -109,3 +109,21 @@ export async function uploadScreenshot(
 
   return { imageRef: await toDataUrl(file), mode: "inline" };
 }
+
+/**
+ * 批量上传，逐个来（避免浏览器并发连接数把进度搞乱）。
+ * onProgress 在每传完一个后回调，参数是已完成数。
+ */
+export async function uploadScreenshots(
+  supabase: SupabaseClient<Database>,
+  memberId: string,
+  files: File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<UploadedScreenshot[]> {
+  const results: UploadedScreenshot[] = [];
+  for (let index = 0; index < files.length; index += 1) {
+    results.push(await uploadScreenshot(supabase, memberId, files[index]));
+    onProgress?.(index + 1, files.length);
+  }
+  return results;
+}

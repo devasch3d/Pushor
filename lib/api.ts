@@ -13,7 +13,7 @@
 
 import { getSupabase } from "@/lib/supabase/client";
 import { isInlineImageRef, validateInlineImageRef } from "@/lib/storage";
-import type { ReviewDecision } from "@/lib/types";
+import { MAX_UPLOAD_FILES, type ReviewDecision } from "@/lib/types";
 
 export interface ActionResult {
   ok: boolean;
@@ -60,14 +60,14 @@ export async function signOutUser(): Promise<void> {
 }
 
 /**
- * 成员提交打卡附件。
+ * 成员提交打卡附件（1..10 个文件，总大小 ≤ 50 MB）。
  * 事件 / 描述由成员自己键入，不需要管理员事先布置任务。
- * imageRef 有两种合法形态：Storage 对象路径（主路径），
+ * imageRefs 每个元素有两种合法形态：Storage 对象路径（主路径），
  * 或 data: 内联（仅在没有 Storage 的环境才会出现）。
  */
 export async function submitScreenshot(input: {
   event: string;
-  imageRef: string;
+  imageRefs: string[];
   note: string;
   replacesId?: string | null;
 }): Promise<ActionResult> {
@@ -78,15 +78,20 @@ export async function submitScreenshot(input: {
   if (!user) return { ok: false, error: "登录态失效了，请重新登录" };
 
   const event = input.event.trim().slice(0, 120);
-  const { imageRef, replacesId } = input;
+  const { imageRefs, replacesId } = input;
   if (!event) return { ok: false, error: "请填写事件" };
-  if (!imageRef) return { ok: false, error: "请先上传文件" };
+  if (imageRefs.length === 0) return { ok: false, error: "请先上传文件" };
+  if (imageRefs.length > MAX_UPLOAD_FILES) {
+    return { ok: false, error: `一次最多 ${MAX_UPLOAD_FILES} 个文件` };
+  }
 
-  if (isInlineImageRef(imageRef)) {
-    const problem = validateInlineImageRef(imageRef);
-    if (problem) return { ok: false, error: problem };
-  } else if (!imageRef.startsWith(`${user.id}/`)) {
-    return { ok: false, error: "文件路径不合法，请重新上传" };
+  for (const imageRef of imageRefs) {
+    if (isInlineImageRef(imageRef)) {
+      const problem = validateInlineImageRef(imageRef);
+      if (problem) return { ok: false, error: problem };
+    } else if (!imageRef.startsWith(`${user.id}/`)) {
+      return { ok: false, error: "文件路径不合法，请重新上传" };
+    }
   }
 
   const note = input.note.trim() ? input.note.trim().slice(0, 500) : null;
@@ -105,7 +110,8 @@ export async function submitScreenshot(input: {
     task_id: null,
     event,
     member_id: user.id,
-    image_url: imageRef,
+    image_url: null,
+    image_urls: imageRefs,
     note,
     status: "pending",
     replaces_id: replacesId || null,

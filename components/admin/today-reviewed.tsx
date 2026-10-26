@@ -1,4 +1,4 @@
-import { AttachmentRow } from "@/components/terminal/attachment";
+import { AttachmentList } from "@/components/terminal/attachment";
 import { EmptyLine } from "@/components/terminal/shell";
 import { SubmissionStatusBadge } from "@/components/terminal/status-badge";
 import { formatShort } from "@/lib/time";
@@ -66,7 +66,7 @@ function ReviewedGroup({
                 </span>
                 <SubmissionStatusBadge status={submission.status} />
               </div>
-              <AttachmentRow src={submission.signed_url} label="附件" />
+              <AttachmentList submission={submission} />
               <p className="font-mono text-[10px] text-muted-foreground">
                 {submission.member?.display_name ?? submission.member_id.slice(0, 8)} · 审于{" "}
                 {formatShort(submission.reviewed_at)}

@@ -4,7 +4,7 @@
 -- 用法：把本文件【全部内容】复制进 Supabase 控制台 → SQL Editor → Run。
 --       只需要跑这一次。整个脚本是幂等的，重复跑也不会出错或产生重复对象。
 --
--- 内容 = 0001_schema.sql + 0002_rls.sql + 0003_storage.sql 三份合并，
+-- 内容 = migrations/0001..0006 六份合并，
 --        单份文件仍保留在 supabase/migrations/ 下，供 supabase CLI 使用。
 --
 -- 预期结果：Success。可能会看到几条 NOTICE，那是脚本在报告
@@ -434,5 +434,267 @@ begin
   raise notice 'screenshots bucket 与读写策略已就绪';
 exception when others then
   raise notice 'storage schema 不可用，已跳过 screenshots bucket（%）。应用会自动回退到内联图片存储。', SQLERRM;
+end
+$do$;
+
+-- #####################################################################
+-- #####  来自 migrations/0004_event.sql
+-- #####################################################################
+
+-- =============================================================================
+-- 0004_event.sql
+-- Pushor · 成员自填「事件」+「描述」，不再依赖管理员布置的 tasks
+--
+-- 变更：
+--   1. submissions 增加 event 列（成员键入的事件名）
+--   2. task_id 放宽为可空（新版提交不再挂任务；老记录保持原值）
+--   3. 老记录用其任务标题回填 event，避免列表空白
+--   4. 重建成员提交策略：事件必填；task_id 为空或属于本人都放行
+--
+-- 幂等：可重复执行。tasks 表保留不删（老记录还指着它），只是新流程不再使用。
+-- =============================================================================
+
+alter table submissions add column if not exists event text;
+
+alter table submissions alter column task_id drop not null;
+
+update submissions s
+   set event = t.title
+  from tasks t
+ where s.task_id = t.id
+   and coalesce(btrim(s.event), '') = '';
+
+drop policy if exists "submissions_member_insert_pending" on submissions;
+
+do $do$
+declare
+  core_check text;
+begin
+  core_check := $chk$
+    member_id = auth.uid ()
+    and status = 'pending'
+    and admin_note is null
+    and reviewed_at is null
+    and coalesce(btrim(event), '') <> ''
+    and (
+      task_id is null
+      or exists (
+        select 1 from tasks t
+        where t.id = submissions.task_id
+          and t.member_id = auth.uid ()
+      )
+    )
+    and (
+      replaces_id is null
+      or exists (
+        select 1 from submissions s
+        where s.id = submissions.replaces_id
+          and s.member_id = auth.uid ()
+          and s.status = 'rejected'
+      )
+    )
+  $chk$;
+
+  begin
+    -- 首选：带 Storage 路径校验
+    execute format(
+      'create policy "submissions_member_insert_pending" on submissions
+         for insert to authenticated
+         with check (%s and (storage.foldername(image_url))[1] = auth.uid ()::text)',
+      core_check
+    );
+    raise notice 'submissions_member_insert_pending: 已启用（含 storage 路径校验）';
+  exception when others then
+    execute format(
+      'create policy "submissions_member_insert_pending" on submissions
+         for insert to authenticated
+         with check (%s)',
+      core_check
+    );
+    raise notice 'submissions_member_insert_pending: 已启用（storage schema 不可用，跳过路径校验：%）', SQLERRM;
+  end;
+end
+$do$;
+
+-- #####################################################################
+-- #####  来自 migrations/0005_purge_log.sql
+-- #####################################################################
+
+-- =============================================================================
+-- 0005_purge_log.sql
+-- Pushor · 附件定时清理的台账表
+--
+-- purge_log 记录「哪条提交的附件文件已经被清理 Worker 删掉」。
+--   - 删除动作由 Cloudflare Worker（pushor-purge）用 service_role 执行
+--   - 应用端读到 purge_log 就把图片位置显示成占位块，不去生成签名 URL
+--   - submissions 记录本身永远保留（状态 / 原因 / 时间都在）
+--
+-- RLS：只开 select 给登录用户。insert 不给策略 ——
+--       只有 service_role 会写它，而 service_role 天然绕过 RLS。
+--
+-- 幂等：可重复执行。
+-- =============================================================================
+
+create table if not exists purge_log (
+  submission_id uuid primary key references submissions (id) on delete cascade,
+  purged_at     timestamptz not null default now()
+);
+
+alter table purge_log enable row level security;
+
+drop policy if exists "purge_log_read_authenticated" on purge_log;
+create policy "purge_log_read_authenticated" on purge_log
+  for select to authenticated
+  using (true);
+
+-- #####################################################################
+-- #####  来自 migrations/0006_multi_file.sql
+-- #####################################################################
+
+-- =============================================================================
+-- 0006_multi_file.sql
+-- Pushor · 一次提交支持多个附件
+--
+-- 变更：
+--   1. submissions 增加 image_urls text[] 列（一条提交挂 1..10 个附件）
+--   2. image_url 放宽为可空（新版提交只写 image_urls；老列保留兼容旧记录）
+--   3. 老记录回填：image_urls = array[image_url]
+--   4. 重建成员提交策略：每个附件路径都必须在上传者自己的目录下
+--   5. 重建 submissions_review_guard：把 image_urls / event 也纳入不可改列
+--
+-- 幂等：可重复执行。
+-- =============================================================================
+
+alter table submissions add column if not exists image_urls text[];
+
+alter table submissions alter column image_url drop not null;
+
+comment on column submissions.image_urls is
+  '附件路径数组（Storage object path 或 data: 内联），一条提交 1..10 个。老记录由 image_url 回填。';
+
+-- 回填老记录（幂等：只碰 image_urls 还是空的行）。
+-- 回填是「数据迁移」而不是「审核」，会被 0001 的 submissions_review_guard
+-- 触发器当成非 admin 改行拦下来，所以先临时禁用触发器再更新。
+alter table submissions disable trigger submissions_review_guard_trigger;
+
+update submissions
+   set image_urls = array[image_url]
+ where image_urls is null
+   and image_url is not null;
+
+alter table submissions enable trigger submissions_review_guard_trigger;
+
+-- -----------------------------------------------------------------------------
+-- 重建审核守卫：只有 status / admin_note 可改，其余列（含新增的 image_urls
+-- 和此前遗漏的 event）原封不动。
+-- -----------------------------------------------------------------------------
+create or replace function submissions_review_guard ()
+  returns trigger
+  language plpgsql
+as $$
+begin
+  if not is_admin () then
+    raise exception 'forbidden: only admin can update submissions';
+  end if;
+
+  if old.status <> 'pending' then
+    raise exception 'submission % is already reviewed (%)', old.id, old.status;
+  end if;
+
+  if new.status not in ('approved', 'rejected') then
+    raise exception 'invalid review target status: %', new.status;
+  end if;
+
+  if new.status = 'rejected' and coalesce(btrim(new.admin_note), '') = '' then
+    raise exception 'admin_note is required when rejecting a submission';
+  end if;
+
+  if new.image_url   is distinct from old.image_url
+     or new.image_urls  is distinct from old.image_urls
+     or new.event       is distinct from old.event
+     or new.member_id   is distinct from old.member_id
+     or new.task_id     is distinct from old.task_id
+     or new.note        is distinct from old.note
+     or new.replaces_id is distinct from old.replaces_id
+     or new.created_at  is distinct from old.created_at then
+    raise exception 'only status and admin_note may be changed on a submission';
+  end if;
+
+  new.reviewed_at := now();
+  return new;
+end;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- 重建成员提交策略
+-- -----------------------------------------------------------------------------
+drop policy if exists "submissions_member_insert_pending" on submissions;
+
+do $do$
+declare
+  core_check text;
+begin
+  core_check := $chk$
+    member_id = auth.uid ()
+    and status = 'pending'
+    and admin_note is null and reviewed_at is null
+    and coalesce(btrim(event), '') <> ''
+    and (
+      -- 新格式：image_urls 挂 1..10 个附件，每个都非空
+      (
+        image_urls is not null
+        and cardinality(image_urls) between 1 and 10
+        and not exists (
+          select 1 from unnest(image_urls) as u (ref)
+          where coalesce(btrim(u.ref), '') = ''
+        )
+      )
+      -- 旧格式：单附件 image_url（兼容老客户端 / 验收脚本）
+      or (image_urls is null and image_url is not null)
+    )
+    and (
+      task_id is null
+      or exists (
+        select 1 from tasks t
+        where t.id = submissions.task_id
+          and t.member_id = auth.uid ()
+      )
+    )
+    and (
+      replaces_id is null
+      or exists (
+        select 1 from submissions s
+        where s.id = submissions.replaces_id
+          and s.member_id = auth.uid ()
+          and s.status = 'rejected'
+      )
+    )
+  $chk$;
+
+  begin
+    -- 首选：带 Storage 路径校验（两列的每个路径都必须在自己目录下）
+    execute format(
+      'create policy "submissions_member_insert_pending" on submissions
+         for insert to authenticated
+         with check (%s
+           and (image_url is null
+                or (storage.foldername(image_url))[1] = auth.uid ()::text)
+           and (image_urls is null
+                or not exists (
+                  select 1 from unnest(image_urls) as u (ref)
+                  where (storage.foldername(u.ref))[1] is distinct from auth.uid ()::text
+                )))',
+      core_check
+    );
+    raise notice 'submissions_member_insert_pending: 已启用（含 storage 路径校验）';
+  exception when others then
+    execute format(
+      'create policy "submissions_member_insert_pending" on submissions
+         for insert to authenticated
+         with check (%s)',
+      core_check
+    );
+    raise notice 'submissions_member_insert_pending: 已启用（storage schema 不可用，跳过路径校验：%）', SQLERRM;
+  end;
 end
 $do$;

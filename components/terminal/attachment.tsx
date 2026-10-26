@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Download, FileBox, Trash2 } from "lucide-react";
 
-import { refExtension } from "@/lib/types";
+import { refExtension, submissionFiles, type SignedSubmission } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface AttachmentRowProps {
@@ -79,6 +79,36 @@ export function AttachmentRow({ src, label, large, className }: AttachmentRowPro
           已清理
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * 一条提交的全部附件：每个文件一行 AttachmentRow。
+ * 多附件时标注序号「附件 i/N」。
+ */
+export function AttachmentList({
+  submission,
+  large,
+  className,
+}: {
+  submission: SignedSubmission;
+  large?: boolean;
+  className?: string;
+}) {
+  const files = submissionFiles(submission);
+  if (files.length === 0) return null;
+
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {files.map((file, index) => (
+        <AttachmentRow
+          key={`${index}-${file.ref.slice(-24)}`}
+          src={file.signedUrl}
+          label={files.length > 1 ? `附件 ${index + 1}/${files.length}` : "附件"}
+          large={large}
+        />
+      ))}
     </div>
   );
 }

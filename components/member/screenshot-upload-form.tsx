@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Upload } from "lucide-react";
+import { FolderOpen, Loader2, Upload, X } from "lucide-react";
 
 import { submitScreenshot } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -10,8 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ErrorLine, OkLine } from "@/components/terminal/shell";
 import { getSupabase } from "@/lib/supabase/client";
-import { uploadScreenshot } from "@/lib/storage";
-import { MAX_UPLOAD_BYTES, validateUploadFile } from "@/lib/types";
+import { uploadScreenshots } from "@/lib/storage";
+import {
+  MAX_TOTAL_UPLOAD_BYTES,
+  MAX_UPLOAD_FILES,
+  validateUploadFiles,
+} from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface ScreenshotUploadFormProps {
   memberId: string;
@@ -26,10 +31,19 @@ interface ScreenshotUploadFormProps {
 
 type Phase = "idle" | "uploading" | "saving" | "done";
 
+function fileKey(file: File): string {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function formatMb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 /**
  * 提交附件表单。
- * 事件 / 描述由成员自己键入；文件不限格式、单个 ≤ 10 MB。
- * 流程：校验大小 → 直传 Storage 的 <memberId>/ 目录 → 写 submissions（status 固定 pending）。
+ * 事件 / 描述由成员自己键入；最多 10 个文件、总大小 ≤ 50 MB、格式不限。
+ * 流程：校验数量与总大小 → 逐个直传 Storage 的 <memberId>/ 目录 →
+ *       写一条 submissions（image_urls 数组，status 固定 pending）。
  */
 export function ScreenshotUploadForm({
   memberId,
@@ -39,45 +53,46 @@ export function ScreenshotUploadForm({
   submitLabel,
   onSuccess,
 }: ScreenshotUploadFormProps) {
-  const [file, setFile] = React.useState<File | null>(null);
-  const [preview, setPreview] = React.useState<string | null>(null);
+  const [files, setFiles] = React.useState<File[]>([]);
   const [phase, setPhase] = React.useState<Phase>("idle");
+  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [ok, setOk] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const busy = phase === "uploading" || phase === "saving";
+  const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+  const nearLimit = totalBytes > MAX_TOTAL_UPLOAD_BYTES * 0.9;
 
-  React.useEffect(() => {
-    return () => {
-      if (preview) URL.revokeObjectURL(preview);
-    };
-  }, [preview]);
-
-  function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const picked = event.target.files?.[0] ?? null;
+  function onFilesPicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    // 清掉 input 的值，这样同一个文件撤销后还能再选
+    event.target.value = "";
     setError(null);
     setOk(null);
+    if (picked.length === 0) return;
 
-    if (preview) URL.revokeObjectURL(preview);
+    setFiles((current) => {
+      const seen = new Set(current.map(fileKey));
+      const merged = [...current];
+      for (const file of picked) {
+        const key = fileKey(file);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(file);
+      }
+      const problem = validateUploadFiles(merged);
+      if (problem) {
+        setError(problem);
+        return current;
+      }
+      return merged;
+    });
+  }
 
-    if (!picked) {
-      setFile(null);
-      setPreview(null);
-      return;
-    }
-
-    const problem = validateUploadFile(picked);
-    if (problem) {
-      setFile(null);
-      setPreview(null);
-      setError(problem);
-      event.target.value = "";
-      return;
-    }
-
-    setFile(picked);
-    setPreview(URL.createObjectURL(picked));
+  function removeFile(index: number) {
+    setError(null);
+    setFiles((current) => current.filter((_, i) => i !== index));
   }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -96,21 +111,26 @@ export function ScreenshotUploadForm({
       setError("请填写事件");
       return;
     }
-    if (!file) {
-      setError("请选择一个文件");
+    const problem = validateUploadFiles(files);
+    if (problem) {
+      setError(problem);
       return;
     }
 
     try {
       setPhase("uploading");
+      setProgress({ done: 0, total: files.length });
       const supabase = getSupabase();
       // 主路径直传私有 bucket；托管环境没有 Storage 时自动降级为内联存储（见 lib/storage.ts）
-      const uploaded = await uploadScreenshot(supabase, memberId, file);
+      const uploaded = await uploadScreenshots(supabase, memberId, files, (done, total) =>
+        setProgress({ done, total }),
+      );
 
       setPhase("saving");
+      setProgress(null);
       const result = await submitScreenshot({
         event: eventText,
-        imageRef: uploaded.imageRef,
+        imageRefs: uploaded.map((item) => item.imageRef),
         note,
         replacesId,
       });
@@ -125,11 +145,9 @@ export function ScreenshotUploadForm({
       setOk(
         replacesId
           ? "已重新提交，状态回到待审。旧的驳回记录保留在下面，方便对照。"
-          : "已提交，状态为待审，等管理员审核。",
+          : `已提交 ${uploaded.length} 个附件，状态为待审，等管理员审核。`,
       );
-      setFile(null);
-      if (preview) URL.revokeObjectURL(preview);
-      setPreview(null);
+      setFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
       form.reset();
       onSuccess?.();
@@ -137,6 +155,7 @@ export function ScreenshotUploadForm({
     } catch (thrown) {
       setError(thrown instanceof Error ? thrown.message : "提交失败，请重试");
       setPhase("idle");
+      setProgress(null);
     }
   }
 
@@ -167,43 +186,82 @@ export function ScreenshotUploadForm({
           <Upload className="mr-1 inline h-3 w-3" aria-hidden />
           附件
         </Label>
-        <Input
+
+        {/* 原生 input 藏起来，用终端风格按钮触发，和登出按钮同一套视觉反馈 */}
+        <input
           id="attachment"
           ref={fileInputRef}
           name="attachment"
           type="file"
-          required
+          multiple
           disabled={busy}
-          onChange={onFileChange}
+          onChange={onFilesPicked}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
         />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={files.length === 0 ? "default" : "outline"}
+            size="sm"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+            className="transition-all duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.97]"
+          >
+            {busy && phase === "uploading" ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FolderOpen className="h-3 w-3" />
+            )}
+            {busy && phase === "uploading" && progress
+              ? `上传中 ${progress.done}/${progress.total}`
+              : files.length === 0
+                ? "choose file"
+                : "+ 继续添加"}
+          </Button>
+          <span
+            className={cn(
+              "font-mono text-[11px]",
+              nearLimit ? "text-accent" : "text-term-dim",
+            )}
+          >
+            {files.length}/{MAX_UPLOAD_FILES} 个 · {formatMb(totalBytes)}/
+            {MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024} MB
+          </span>
+        </div>
+
         <p className="font-mono text-[11px] text-term-dim">
-          格式不限，单个文件不超过 {MAX_UPLOAD_BYTES / 1024 / 1024} MB。
+          格式不限，可多选；总大小不超过 {MAX_TOTAL_UPLOAD_BYTES / 1024 / 1024} MB。
         </p>
       </div>
 
-      {file ? (
-        <div className="flex items-center gap-2 border border-border bg-background/60 px-2 py-1.5">
-          <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
-            {file.name}
-          </span>
-          <span className="shrink-0 font-mono text-[10px] text-term-dim">
-            {(file.size / 1024).toFixed(0)} KB
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              if (preview) URL.revokeObjectURL(preview);
-              setPreview(null);
-              setFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = "";
-            }}
-          >
-            撤销
-          </Button>
-        </div>
+      {files.length > 0 ? (
+        <ul className="flex flex-col divide-y divide-border/60 border border-border bg-background/60">
+          {files.map((file, index) => (
+            <li key={fileKey(file)} className="flex items-center gap-2 px-2 py-1.5">
+              <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-foreground">
+                {file.name}
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-term-dim">
+                {file.size >= 1024 * 1024
+                  ? formatMb(file.size)
+                  : `${(file.size / 1024).toFixed(0)} KB`}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => removeFile(index)}
+                aria-label={`移除 ${file.name}`}
+                className="h-6 px-1.5 text-term-dim hover:text-destructive"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <div className="flex flex-col gap-1.5">
@@ -223,11 +281,19 @@ export function ScreenshotUploadForm({
         />
       </div>
 
-      <Button type="submit" disabled={busy}>
+      <Button
+        type="submit"
+        disabled={busy}
+        className="transition-all duration-150 active:scale-[0.98]"
+      >
         {busy ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            {phase === "uploading" ? "上传中…" : "写入中…"}
+            {phase === "uploading"
+              ? progress
+                ? `上传中 ${progress.done}/${progress.total}…`
+                : "上传中…"
+              : "写入中…"}
           </>
         ) : (
           submitLabel ?? (replacesId ? "resubmit" : "submit")

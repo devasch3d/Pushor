@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatShort, fromNow } from "@/lib/time";
-import { refExtension, type SignedSubmission } from "@/lib/types";
+import { refExtension, submissionRefs, type SignedSubmission } from "@/lib/types";
 
 /**
  * 待审队列。
@@ -38,7 +38,15 @@ export function PendingQueue({
   return (
     <>
       <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {submissions.map((submission, index) => (
+        {submissions.map((submission, index) => {
+          const refs = submissionRefs(submission);
+          const summary = submission.purge
+            ? "已清理"
+            : refs.length > 1
+              ? `${refs.length} 个附件`
+              : `.${refExtension(refs[0] ?? "") || "bin"}`;
+
+          return (
           <li key={submission.id}>
             <button
               type="button"
@@ -54,7 +62,7 @@ export function PendingQueue({
                   {submission.event ?? "（无事件名）"}
                 </span>
                 <span className="mt-1 block font-mono text-[10px] uppercase text-term-dim">
-                  .{submission.signed_url ? refExtension(submission.image_url) || "bin" : "已清理"}
+                  {summary}
                 </span>
                 <span className="mt-0.5 block truncate font-mono text-[10px] text-muted-foreground">
                   {submission.member?.display_name ?? submission.member_id.slice(0, 8)}
@@ -70,7 +78,8 @@ export function PendingQueue({
               </span>
             </button>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       <Dialog open={active !== null} onOpenChange={(open) => !open && setActiveId(null)}>
