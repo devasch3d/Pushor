@@ -40,8 +40,9 @@ function formatMb(bytes: number): string {
 }
 
 /**
- * 提交附件表单。
- * 事件 / 描述由成员自己键入；最多 10 个文件、总大小 ≤ 50 MB、格式不限。
+ * 提交表单。
+ * 事件由成员自己键入（必填）；附件与描述选填，附件最多 10 个文件、
+ * 总大小 ≤ 50 MB、格式不限。
  * 流程：校验数量与总大小 → 逐个直传 Storage 的 <memberId>/ 目录 →
  *       写一条 submissions（image_urls 数组，status 固定 pending）。
  */
@@ -118,19 +119,23 @@ export function ScreenshotUploadForm({
     }
 
     try {
-      setPhase("uploading");
-      setProgress({ done: 0, total: files.length });
-      const supabase = getSupabase();
-      // 主路径直传私有 bucket；托管环境没有 Storage 时自动降级为内联存储（见 lib/storage.ts）
-      const uploaded = await uploadScreenshots(supabase, memberId, files, (done, total) =>
-        setProgress({ done, total }),
-      );
+      let imageRefs: string[] = [];
+      if (files.length > 0) {
+        setPhase("uploading");
+        setProgress({ done: 0, total: files.length });
+        const supabase = getSupabase();
+        // 主路径直传私有 bucket；托管环境没有 Storage 时自动降级为内联存储（见 lib/storage.ts）
+        const uploaded = await uploadScreenshots(supabase, memberId, files, (done, total) =>
+          setProgress({ done, total }),
+        );
+        imageRefs = uploaded.map((item) => item.imageRef);
+      }
 
       setPhase("saving");
       setProgress(null);
       const result = await submitScreenshot({
         event: eventText,
-        imageRefs: uploaded.map((item) => item.imageRef),
+        imageRefs,
         note,
         replacesId,
       });
@@ -145,7 +150,9 @@ export function ScreenshotUploadForm({
       setOk(
         replacesId
           ? "已重新提交，状态回到待审。旧的驳回记录保留在下面，方便对照。"
-          : `已提交 ${uploaded.length} 个附件，状态为待审，等管理员审核。`,
+          : imageRefs.length > 0
+            ? `已提交 ${imageRefs.length} 个附件，状态为待审，等管理员审核。`
+            : "已提交，状态为待审，等管理员审核。",
       );
       setFiles([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -269,7 +276,7 @@ export function ScreenshotUploadForm({
           <span className="text-term-dim" aria-hidden>
             --note=&nbsp;
           </span>
-          描述（选填）
+          描述
         </Label>
         <Textarea
           id="note"

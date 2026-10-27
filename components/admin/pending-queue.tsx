@@ -42,9 +42,11 @@ export function PendingQueue({
           const refs = submissionRefs(submission);
           const summary = submission.purge
             ? "已清理"
-            : refs.length > 1
-              ? `${refs.length} 个附件`
-              : `.${refExtension(refs[0] ?? "") || "bin"}`;
+            : refs.length === 0
+              ? "无附件"
+              : refs.length > 1
+                ? `${refs.length} 个附件`
+                : `.${refExtension(refs[0] ?? "") || "bin"}`;
 
           return (
           <li key={submission.id}>

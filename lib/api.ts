@@ -60,7 +60,7 @@ export async function signOutUser(): Promise<void> {
 }
 
 /**
- * 成员提交打卡附件（1..10 个文件，总大小 ≤ 50 MB）。
+ * 成员提交打卡记录。事件必填；附件选填（0..10 个文件，总大小 ≤ 50 MB）。
  * 事件 / 描述由成员自己键入，不需要管理员事先布置任务。
  * imageRefs 每个元素有两种合法形态：Storage 对象路径（主路径），
  * 或 data: 内联（仅在没有 Storage 的环境才会出现）。
@@ -80,7 +80,6 @@ export async function submitScreenshot(input: {
   const event = input.event.trim().slice(0, 120);
   const { imageRefs, replacesId } = input;
   if (!event) return { ok: false, error: "请填写事件" };
-  if (imageRefs.length === 0) return { ok: false, error: "请先上传文件" };
   if (imageRefs.length > MAX_UPLOAD_FILES) {
     return { ok: false, error: `一次最多 ${MAX_UPLOAD_FILES} 个文件` };
   }

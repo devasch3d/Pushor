@@ -139,9 +139,9 @@ export function isPreviewableImage(ref: string): boolean {
   return (IMAGE_EXTENSIONS as readonly string[]).includes(refExtension(ref));
 }
 
-/** 上传校验：不限格式，限数量（≤10）与总大小（≤50 MB） */
+/** 上传校验：附件选填；有附件时不限格式，限数量（≤10）与总大小（≤50 MB） */
 export function validateUploadFiles(files: File[]): string | null {
-  if (files.length === 0) return "请选择至少一个文件";
+  if (files.length === 0) return null;
   if (files.length > MAX_UPLOAD_FILES) {
     return `一次最多 ${MAX_UPLOAD_FILES} 个文件，现在选了 ${files.length} 个`;
   }

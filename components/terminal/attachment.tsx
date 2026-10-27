@@ -85,7 +85,7 @@ export function AttachmentRow({ src, label, large, className }: AttachmentRowPro
 
 /**
  * 一条提交的全部附件：每个文件一行 AttachmentRow。
- * 多附件时标注序号「附件 i/N」。
+ * 多附件时标注序号「附件 i/N」；附件选填，没有时显示占位行。
  */
 export function AttachmentList({
   submission,
@@ -97,7 +97,19 @@ export function AttachmentList({
   className?: string;
 }) {
   const files = submissionFiles(submission);
-  if (files.length === 0) return null;
+  if (files.length === 0) {
+    return (
+      <p
+        className={cn(
+          "border border-border bg-background/50 font-mono text-term-dim",
+          large ? "px-3 py-2.5 text-xs" : "px-2 py-1.5 text-[11px]",
+          className,
+        )}
+      >
+        -- 无附件 --
+      </p>
+    );
+  }
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>

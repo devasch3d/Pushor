@@ -224,6 +224,19 @@ const run = async () => {
     `http ${tooManyFiles.status}`,
   );
 
+  const noAttachment = await api(
+    member,
+    "POST",
+    "/rest/v1/submissions?select=id,status",
+    { member_id: memberId, event: "验收事件（无附件）", image_urls: [] },
+    { Prefer: "return=representation" },
+  );
+  check(
+    "不带附件的提交成功（附件选填，status=pending）",
+    noAttachment.status === 201 && firstRow(noAttachment)?.status === "pending",
+    `http ${noAttachment.status} ${JSON.stringify(noAttachment.body).slice(0, 120)}`,
+  );
+
   const selfApprove = await api(
     member,
     "PATCH",

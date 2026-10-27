@@ -66,9 +66,9 @@
 │   ├── types.ts · types/database.ts
 │   └── utils.ts
 ├── supabase/
-│   ├── migrations/0001..0006_*.sql   表+索引+触发器 / RLS / Storage / event / purge_log / 多附件
-│   └── setup_all_in_one.sql          六份合并版，供控制台一次性粘贴
-├── scripts/acceptance-test.mjs   29 条 RLS / 流程验收用例，直接打 Supabase API
+│   ├── migrations/0001..0007_*.sql   表+索引+触发器 / RLS / Storage / event / purge_log / 多附件 / 附件选填
+│   └── setup_all_in_one.sql          七份合并版，供控制台一次性粘贴
+├── scripts/acceptance-test.mjs   30 条 RLS / 流程验收用例，直接打 Supabase API
 └── .env.example
 ```
 
@@ -102,7 +102,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon public key>
 
 Supabase 控制台 **SQL Editor** → 新建查询 → 把
 `supabase/setup_all_in_one.sql` 的**全部内容**复制进去 → Run。
-（它是 `0001..0006` 六份的合并，幂等，重复跑没事。
+（它是 `0001..0007` 七份的合并，幂等，重复跑没事。
 用 supabase CLI 的话改跑 `supabase db push`。）
 
 跑的时候 Supabase 可能弹「Potential issue detected」警告，
@@ -135,7 +135,7 @@ npm run dev          # 本地开发
 npm run typecheck    # tsc --noEmit
 npm run lint         # next lint
 npm run build        # 静态导出
-node scripts/acceptance-test.mjs   # 29 条 RLS 验收
+node scripts/acceptance-test.mjs   # 30 条 RLS 验收
 ```
 
 ---
@@ -285,7 +285,7 @@ const res = await sb.from("submissions")
 console.log(res);   // data: [] —— 命中 0 行，数据库里那条仍是 pending
 ```
 
-或者直接用仓库里的验收脚本，29 条用例一次跑完：
+或者直接用仓库里的验收脚本，30 条用例一次跑完：
 
 ```bash
 node scripts/acceptance-test.mjs
@@ -350,8 +350,8 @@ status 强制 pending、驳回必须写原因、已审不能翻案、`replaces_i
 - **静态导出没有 middleware**：未登录访问 /member、/admin 时，
   是浏览器端守卫先跳走 + RLS 保证就算不跳也拿不到数据。
   直接打开 URL 会先闪一下加载页再跳转，这是静态站点的正常表现。
-- **一次提交最多 10 个文件、总大小上限 50 MB**，格式不限，浏览器侧校验；
-  数据库层 RLS 同样限制数组长度 1..10 与路径归属。
+- **附件选填**；有附件时一次提交最多 10 个文件、总大小上限 50 MB，格式不限，
+  浏览器侧校验；数据库层 RLS 同样限制数组长度 ≤10 与路径归属。
   如需更严，在控制台给 `screenshots` bucket 加 `file_size_limit`。
 - **不提供删除**。截图是审核证据：Storage 没有 update/delete 策略，
   数据库没有 delete 策略，Supabase 也禁止用 SQL 直接删 storage.objects。
